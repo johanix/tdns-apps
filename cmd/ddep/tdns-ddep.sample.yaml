@@ -1,0 +1,43 @@
+# tdns-ddep — DNS Dependency Analyzer
+#
+# This is a sample config. Copy to /etc/tdns/tdns-imr.yaml (or specify
+# with --config) and adjust to your environment.
+#
+# tdns-ddep is a derivative of tdns-imr. All standard IMR config keys
+# apply. The additional "ddep" section controls the dependency analyzer.
+
+imrengine:
+   active:              true
+   # root-hints:        "/etc/tdns/root.hints"   # Optional: uses compiled-in hints if empty
+   addresses:           [ 127.0.0.1:53, '[::1]:53' ]
+   transports:          [ do53 ]
+
+   # To enable encrypted transports, add them to the transports list
+   # and provide a TLS certificate + key:
+   #
+   # transports:        [ do53, doh, dot, doq ]
+   # certfile:          /etc/tdns/certs/ddep.crt
+   # keyfile:           /etc/tdns/certs/ddep.key
+
+   # IMR options (all boolean):
+   # - query-for-transport: Query for transport signals opportunistically
+   # - always-query-for-transport: Always query for new auth servers
+   # - query-for-transport-tlsa: Query for TLSA records
+   options: []
+
+# Port configuration for encrypted transports (optional, shown with defaults).
+# The addresses above provide the IP; these provide the port per transport.
+dnsengine:
+   ports:
+      # doh:             [ 443 ]
+      # dot:             [ 853 ]
+      # doq:             [ 853 ]
+
+# --- Dependency analyzer settings ---
+ddep:
+   # Persistent block rules file. Created automatically on first use.
+   blockrules_file:     /etc/tdns/ddep-block-rules.json
+
+log:
+   file:                /var/log/tdns/tdns-ddep.log
+   level:               info    # debug|info|warn|error

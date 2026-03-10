@@ -30,3 +30,10 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+*/*/version.go
+*/*/*~
+*/*~
+*~
+
+cmd/tdns-ddep/tdns-ddep
