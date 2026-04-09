@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"slices"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 var maxQPS int
 var trafficQName string
+var trafficQType string
 var targetList []string
 var rampUpDuration time.Duration
 var sustainDuration time.Duration
@@ -22,6 +24,44 @@ var rampDownDuration time.Duration
 var cycleDuration time.Duration
 var ipv4Only bool
 var ipv6Only bool
+
+// randomQTypes is the pool used when --qtype=random.
+var randomQTypes = []uint16{
+	dns.TypeA,
+	dns.TypeAAAA,
+	dns.TypeNS,
+	dns.TypeMX,
+	dns.TypeTXT,
+	dns.TypeSOA,
+	dns.TypeCNAME,
+	dns.TypePTR,
+	dns.TypeSRV,
+	dns.TypeDS,
+	dns.TypeDNSKEY,
+}
+
+// parseQType resolves the --qtype flag to a miekg/dns type code.
+// Accepts names like "A", "AAAA", "MX", "TYPE65" (case-insensitive).
+// The special value "random" returns 0 — callers must then use
+// pickQType to draw a fresh type for each query.
+func parseQType(s string) (uint16, error) {
+	s = strings.ToUpper(strings.TrimSpace(s))
+	if s == "" {
+		return dns.TypeA, nil
+	}
+	if s == "RANDOM" {
+		return 0, nil
+	}
+	if t, ok := dns.StringToType[s]; ok {
+		return t, nil
+	}
+	return 0, fmt.Errorf("unknown RR type: %s", s)
+}
+
+// pickQType returns a random type from randomQTypes.
+func pickQType() uint16 {
+	return randomQTypes[rand.Intn(len(randomQTypes))]
+}
 
 func getNames() []string {
 	if trafficQName != "" {
@@ -98,13 +138,22 @@ func rampDown(targets, names []string, client *dns.Client, duration time.Duratio
 }
 
 func sendQueries(targets, names []string, qps int, client *dns.Client) []string {
+	qtype, err := parseQType(trafficQType)
+	if err != nil {
+		log.Fatal(err)
+	}
+	randomType := strings.EqualFold(strings.TrimSpace(trafficQType), "random")
 	log.Printf("Sending %d qps to each of %d targets: %v", qps, len(targets), targets)
 	for _, target := range targets {
 		for _, name := range names {
 			go func(target, name string) {
 				for i := 0; i < qps; i++ {
 					m := new(dns.Msg)
-					m.SetQuestion(dns.Fqdn(name), dns.TypeA)
+					qt := qtype
+					if randomType {
+						qt = pickQType()
+					}
+					m.SetQuestion(dns.Fqdn(name), qt)
 					// log.Printf("Querying %s for %s", target, name)
 					_, _, err := client.Exchange(m, target)
 					if err != nil {

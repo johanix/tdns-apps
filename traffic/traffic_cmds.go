@@ -96,6 +96,7 @@ func init() {
 	TrafficCmd.AddCommand(TrafficRampUpCmd, TrafficDGACmd)
 	TrafficCmd.PersistentFlags().IntVarP(&maxQPS, "max", "m", 1000, "Maximum queries per second")
 	TrafficCmd.PersistentFlags().StringVarP(&trafficQName, "qname", "", "", "Domain name to query for")
+	TrafficCmd.PersistentFlags().StringVarP(&trafficQType, "qtype", "", "A", "RR type to query for (A, AAAA, NS, MX, ...; or 'random' for a mix)")
 	TrafficCmd.PersistentFlags().StringSliceVarP(&targetList, "targets", "t", []string{}, "List of target IPs or domain names")
 	TrafficCmd.PersistentFlags().DurationVarP(&rampUpDuration, "rampup", "", 60*time.Second, "Duration of the ramp-up phase")
 	TrafficCmd.PersistentFlags().DurationVarP(&sustainDuration, "sustain", "", 30*time.Second, "Duration of the sustain phase")
