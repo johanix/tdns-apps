@@ -101,8 +101,9 @@ func init() {
 	TrafficCmd.PersistentFlags().DurationVarP(&sustainDuration, "sustain", "", 30*time.Second, "Duration of the sustain phase")
 	TrafficCmd.PersistentFlags().DurationVarP(&rampDownDuration, "rampdown", "", 10*time.Second, "Duration of the ramp-down phase")
 	TrafficCmd.PersistentFlags().DurationVarP(&cycleDuration, "cycle", "", 120*time.Second, "Total duration of a cycle")
+	TrafficCmd.PersistentFlags().BoolVarP(&ipv4Only, "ipv4", "4", false, "Only send queries over IPv4 (like dig -4)")
+	TrafficCmd.PersistentFlags().BoolVarP(&ipv6Only, "ipv6", "6", false, "Only send queries over IPv6 (like dig -6)")
 	TrafficDGACmd.Flags().StringVarP(&seed, "seed", "S", "", "Seed for the DGA algorithm")
 	TrafficDGACmd.Flags().StringVarP(&dgaalg, "alg", "A", "", "DGA algorithm (md5+time or linear)")
 	TrafficDGACmd.Flags().StringVarP(&basename, "basename", "B", "", "Base name for the DGA algorithm")
 }
-

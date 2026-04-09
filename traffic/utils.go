@@ -20,6 +20,8 @@ var rampUpDuration time.Duration
 var sustainDuration time.Duration
 var rampDownDuration time.Duration
 var cycleDuration time.Duration
+var ipv4Only bool
+var ipv6Only bool
 
 func getNames() []string {
 	if trafficQName != "" {
@@ -29,6 +31,9 @@ func getNames() []string {
 }
 
 func resolveTargets(targets []string) []string {
+	if ipv4Only && ipv6Only {
+		log.Fatal("Cannot specify both -4 and -6")
+	}
 	var resolved []string
 	client := new(dns.Client)
 	for _, target := range targets {
@@ -38,6 +43,13 @@ func resolveTargets(targets []string) []string {
 			continue
 		}
 		for _, ip := range ips {
+			isV4 := ip.To4() != nil
+			if ipv4Only && !isV4 {
+				continue
+			}
+			if ipv6Only && isV4 {
+				continue
+			}
 			address := net.JoinHostPort(ip.String(), "53")
 			m := new(dns.Msg)
 			m.SetQuestion(".", dns.TypeSOA)
