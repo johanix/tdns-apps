@@ -24,7 +24,7 @@ var TrafficRampUpCmd = &cobra.Command{
 		}
 
 		names := getNames()
-		targets := resolveTargets(targetList)
+		targets := resolveTargets(targetList, names)
 		client := new(dns.Client)
 
 		totalPhaseDuration := rampUpDuration + sustainDuration + rampDownDuration
@@ -68,7 +68,7 @@ var TrafficDGACmd = &cobra.Command{
 			log.Fatalf("Seed must be at least 16 characters")
 		}
 
-		targets := resolveTargets(targetList)
+		targets := resolveTargets(targetList, nil)
 		client := new(dns.Client)
 
 		changeDGA := time.NewTicker(5 * time.Second)

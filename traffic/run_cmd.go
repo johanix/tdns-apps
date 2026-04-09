@@ -153,7 +153,7 @@ func runTraffic(cmd *cobra.Command, args []string) {
 		daemonize()
 	}
 
-	targets := resolveTargets(targetList)
+	targets := resolveTargets(targetList, names)
 	if len(targets) == 0 {
 		log.Fatal("No reachable targets")
 	}
@@ -225,7 +225,7 @@ func runTraffic(cmd *cobra.Command, args []string) {
 			names = newCfg.Names
 			shapeFn = resolveShape()
 			if len(newCfg.Targets) > 0 {
-				targets = resolveTargets(newCfg.Targets)
+				targets = resolveTargets(newCfg.Targets, names)
 			}
 			cycleStart = time.Now()
 

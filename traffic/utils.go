@@ -70,10 +70,33 @@ func getNames() []string {
 	return viper.GetStringSlice("traffic.names")
 }
 
-func resolveTargets(targets []string) []string {
+// resolveTargets expands each target (IP or hostname) into one or more
+// "ip:53" addresses. Each address is probed once with a query matching
+// what the generator will actually send (same qname, same qtype). The
+// probe is informational only — addresses are kept in the returned list
+// regardless of the probe outcome, so transient failures or firewall
+// quirks at startup do not silently remove an entire address family.
+func resolveTargets(targets, names []string) []string {
 	if ipv4Only && ipv6Only {
 		log.Fatal("Cannot specify both -4 and -6")
 	}
+
+	// Pick a representative qname/qtype for the probe. These match what
+	// sendQueries will use for real traffic, so a working probe implies
+	// the actual workload will be accepted too.
+	probeName := "."
+	if len(names) > 0 {
+		probeName = dns.Fqdn(names[0])
+	}
+	probeType, err := parseQType(trafficQType)
+	if err != nil {
+		log.Fatalf("Invalid --qtype: %v", err)
+	}
+	if probeType == 0 {
+		// --qtype=random: just pick A for the probe.
+		probeType = dns.TypeA
+	}
+
 	var resolved []string
 	client := new(dns.Client)
 	for _, target := range targets {
@@ -82,21 +105,27 @@ func resolveTargets(targets []string) []string {
 			log.Printf("Error resolving target %s: %v", target, err)
 			continue
 		}
+		log.Printf("Target %s resolved to %d address(es): %v", target, len(ips), ips)
 		for _, ip := range ips {
 			isV4 := ip.To4() != nil
 			if ipv4Only && !isV4 {
+				log.Printf("Skipping %s (--ipv4 set)", ip)
 				continue
 			}
 			if ipv6Only && isV4 {
+				log.Printf("Skipping %s (--ipv6 set)", ip)
 				continue
 			}
 			address := net.JoinHostPort(ip.String(), "53")
 			m := new(dns.Msg)
-			m.SetQuestion(".", dns.TypeSOA)
+			m.SetQuestion(probeName, probeType)
 			_, _, err := client.Exchange(m, address)
 			if err != nil {
-				log.Printf("Error testing target %s: %v", address, err)
-				continue
+				log.Printf("Warning: probe %s %s to %s failed: %v — keeping target anyway",
+					probeName, dns.TypeToString[probeType], address, err)
+			} else {
+				log.Printf("Probe %s %s to %s succeeded",
+					probeName, dns.TypeToString[probeType], address)
 			}
 			resolved = append(resolved, address)
 		}
