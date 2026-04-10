@@ -24,6 +24,9 @@ type ControlCommand struct {
 	Names        []string `json:"names,omitempty"`
 	RandomPrefix bool     `json:"random_prefix,omitempty"`
 
+	// For "run": query transport (udp, tcp, both).
+	Transport string `json:"transport,omitempty"`
+
 	// For "extend": additional time.
 	ExtendBy Duration `json:"extend_by,omitempty"`
 }

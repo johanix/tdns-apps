@@ -131,6 +131,7 @@ func runTraffic(cmd *cobra.Command, args []string) {
 			Targets:      targetList,
 			Names:        names,
 			RandomPrefix: randomPrefix,
+			Transport:    trafficTransport,
 		})
 		if err != nil {
 			log.Fatalf("Failed to reconfigure server: %v", err)
@@ -158,10 +159,10 @@ func runTraffic(cmd *cobra.Command, args []string) {
 		log.Fatal("No reachable targets")
 	}
 
-	client := new(dns.Client)
+	clients := makeClients(trafficTransport)
 
-	log.Printf("Starting traffic: shape=%s maxQPS=%d cycle=%v targets=%d qnames=%d randomPrefix=%v",
-		shapeName, maxQPS, cycleDuration, len(targets), len(names), randomPrefix)
+	log.Printf("Starting traffic: shape=%s maxQPS=%d cycle=%v targets=%d qnames=%d randomPrefix=%v transport=%s",
+		shapeName, maxQPS, cycleDuration, len(targets), len(names), randomPrefix, trafficTransport)
 	if maxTime > 0 {
 		log.Printf("Maximum run time: %v", maxTime)
 	}
@@ -216,7 +217,7 @@ func runTraffic(cmd *cobra.Command, args []string) {
 			log.Printf("Extended by %v, new max time: %v", d, maxTime)
 
 		case newCfg := <-reconfigCh:
-			log.Printf("Reconfiguring: shape=%s maxQPS=%d", newCfg.Shape, newCfg.MaxQPS)
+			log.Printf("Reconfiguring: shape=%s maxQPS=%d transport=%s", newCfg.Shape, newCfg.MaxQPS, newCfg.Transport)
 			shapeName = newCfg.Shape
 			peakCount = newCfg.Peaks
 			maxQPS = newCfg.MaxQPS
@@ -224,6 +225,10 @@ func runTraffic(cmd *cobra.Command, args []string) {
 			randomPrefix = newCfg.RandomPrefix
 			names = newCfg.Names
 			shapeFn = resolveShape()
+			if newCfg.Transport != "" {
+				trafficTransport = newCfg.Transport
+				clients = makeClients(trafficTransport)
+			}
 			if len(newCfg.Targets) > 0 {
 				targets = resolveTargets(newCfg.Targets, names)
 			}
@@ -245,7 +250,7 @@ func runTraffic(cmd *cobra.Command, args []string) {
 			if randomPrefix {
 				queryNames = addRandomPrefixes(names)
 			}
-			targets = sendQueries(targets, queryNames, qps, client)
+			targets = sendQueries(targets, queryNames, qps, clients)
 		}
 	}
 }

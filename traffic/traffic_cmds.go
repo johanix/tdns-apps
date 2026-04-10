@@ -25,7 +25,7 @@ var TrafficRampUpCmd = &cobra.Command{
 
 		names := getNames()
 		targets := resolveTargets(targetList, names)
-		client := new(dns.Client)
+		clients := makeClients(trafficTransport)
 
 		totalPhaseDuration := rampUpDuration + sustainDuration + rampDownDuration
 		if cycleDuration <= totalPhaseDuration {
@@ -37,9 +37,9 @@ var TrafficRampUpCmd = &cobra.Command{
 		log.Printf("Zero QPS period between cycles: %v", zeroQPSDuration)
 
 		for {
-			rampUp(targets, names, client, rampUpDuration)
-			sustain(targets, names, client, sustainDuration)
-			rampDown(targets, names, client, rampDownDuration)
+			rampUp(targets, names, clients, rampUpDuration)
+			sustain(targets, names, clients, sustainDuration)
+			rampDown(targets, names, clients, rampDownDuration)
 			fmt.Printf("Sleeping for %v until next cycle\n", zeroQPSDuration)
 			time.Sleep(zeroQPSDuration)
 		}
@@ -69,7 +69,7 @@ var TrafficDGACmd = &cobra.Command{
 		}
 
 		targets := resolveTargets(targetList, nil)
-		client := new(dns.Client)
+		clients := makeClients(trafficTransport)
 
 		changeDGA := time.NewTicker(5 * time.Second)
 		defer changeDGA.Stop()
@@ -82,9 +82,9 @@ var TrafficDGACmd = &cobra.Command{
 			select {
 			case <-changeDGA.C:
 				name = CurrentDGA(dgaalg, seed, basename)
-				// sendDGAQueries(targets, name, client)
+				// sendDGAQueries(targets, name, clients)
 			case <-ticker.C:
-				sendDGAQueries(targets, name, client)
+				sendDGAQueries(targets, name, clients)
 			}
 		}
 	},
@@ -104,6 +104,7 @@ func init() {
 	TrafficCmd.PersistentFlags().DurationVarP(&cycleDuration, "cycle", "", 120*time.Second, "Total duration of a cycle")
 	TrafficCmd.PersistentFlags().BoolVarP(&ipv4Only, "ipv4", "4", false, "Only send queries over IPv4 (like dig -4)")
 	TrafficCmd.PersistentFlags().BoolVarP(&ipv6Only, "ipv6", "6", false, "Only send queries over IPv6 (like dig -6)")
+	TrafficCmd.PersistentFlags().StringVar(&trafficTransport, "transport", "udp", "Query transport: udp (default), tcp, or both")
 	TrafficDGACmd.Flags().StringVarP(&seed, "seed", "S", "", "Seed for the DGA algorithm")
 	TrafficDGACmd.Flags().StringVarP(&dgaalg, "alg", "A", "", "DGA algorithm (md5+time or linear)")
 	TrafficDGACmd.Flags().StringVarP(&basename, "basename", "B", "", "Base name for the DGA algorithm")

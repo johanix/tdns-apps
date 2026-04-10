@@ -17,6 +17,7 @@ import (
 var maxQPS int
 var trafficQName string
 var trafficQType string
+var trafficTransport string
 var targetList []string
 var rampUpDuration time.Duration
 var sustainDuration time.Duration
@@ -61,6 +62,20 @@ func parseQType(s string) (uint16, error) {
 // pickQType returns a random type from randomQTypes.
 func pickQType() uint16 {
 	return randomQTypes[rand.Intn(len(randomQTypes))]
+}
+
+// makeClients returns one or two dns.Clients based on the --transport
+// flag. For "udp" or "tcp" it returns a single client; for "both" it
+// returns two (one UDP, one TCP). Callers round-robin across the slice.
+func makeClients(transport string) []*dns.Client {
+	switch strings.ToLower(transport) {
+	case "tcp":
+		return []*dns.Client{{Net: "tcp"}}
+	case "both":
+		return []*dns.Client{{Net: "udp"}, {Net: "tcp"}}
+	default:
+		return []*dns.Client{{Net: "udp"}}
+	}
 }
 
 func getNames() []string {
@@ -133,16 +148,16 @@ func resolveTargets(targets, names []string) []string {
 	return resolved
 }
 
-func rampUp(targets, names []string, client *dns.Client, duration time.Duration) {
+func rampUp(targets, names []string, clients []*dns.Client, duration time.Duration) {
 	fmt.Printf("Ramping up to %d qps over %v\n", maxQPS, duration)
 	step := maxQPS / int(duration.Seconds())
 	for qps := 0; qps <= maxQPS; qps += step {
-		targets = sendQueries(targets, names, qps, client)
+		targets = sendQueries(targets, names, qps, clients)
 		time.Sleep(time.Second)
 	}
 }
 
-func sustain(targets, names []string, client *dns.Client, duration time.Duration) {
+func sustain(targets, names []string, clients []*dns.Client, duration time.Duration) {
 	fmt.Printf("Sustaining traffic at %d qps for %v\n", maxQPS, duration)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -150,23 +165,23 @@ func sustain(targets, names []string, client *dns.Client, duration time.Duration
 	for {
 		select {
 		case <-ticker.C:
-			targets = sendQueries(targets, names, maxQPS, client)
+			targets = sendQueries(targets, names, maxQPS, clients)
 		case <-timeout:
 			return
 		}
 	}
 }
 
-func rampDown(targets, names []string, client *dns.Client, duration time.Duration) {
+func rampDown(targets, names []string, clients []*dns.Client, duration time.Duration) {
 	fmt.Printf("Ramping down to 0 qps over %v\n", duration)
 	step := maxQPS / int(duration.Seconds())
 	for qps := maxQPS; qps >= 0; qps -= step {
-		targets = sendQueries(targets, names, qps, client)
+		targets = sendQueries(targets, names, qps, clients)
 		time.Sleep(time.Second)
 	}
 }
 
-func sendQueries(targets, names []string, qps int, client *dns.Client) []string {
+func sendQueries(targets, names []string, qps int, clients []*dns.Client) []string {
 	qtype, err := parseQType(trafficQType)
 	if err != nil {
 		log.Fatal(err)
@@ -183,7 +198,7 @@ func sendQueries(targets, names []string, qps int, client *dns.Client) []string 
 						qt = pickQType()
 					}
 					m.SetQuestion(dns.Fqdn(name), qt)
-					// log.Printf("Querying %s for %s", target, name)
+					client := clients[i%len(clients)]
 					_, _, err := client.Exchange(m, target)
 					if err != nil {
 						log.Printf("Error querying %s: %v", target, err)
@@ -223,7 +238,7 @@ func CurrentDGA(dgaalg, seed, basename string) string {
 	return name + "." + basename
 }
 
-func sendDGAQueries(targets []string, name string, client *dns.Client) {
+func sendDGAQueries(targets []string, name string, clients []*dns.Client) {
 	for _, target := range targets {
 		fmt.Printf("Querying %s for %s\n", target, name)
 		//		m := new(dns.Msg)
