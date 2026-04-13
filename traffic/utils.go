@@ -26,19 +26,34 @@ var cycleDuration time.Duration
 var ipv4Only bool
 var ipv6Only bool
 
-// randomQTypes is the pool used when --qtype=random.
-var randomQTypes = []uint16{
-	dns.TypeA,
-	dns.TypeAAAA,
-	dns.TypeNS,
-	dns.TypeMX,
-	dns.TypeTXT,
-	dns.TypeSOA,
-	dns.TypeCNAME,
-	dns.TypePTR,
-	dns.TypeSRV,
-	dns.TypeDS,
-	dns.TypeDNSKEY,
+// weightedQTypes defines the pool and relative weights for --qtype=random.
+// The weights produce a realistic-looking distribution where common types
+// dominate and exotic types appear occasionally.
+var weightedQTypes = []struct {
+	qtype  uint16
+	weight int
+}{
+	{dns.TypeA, 40},
+	{dns.TypeAAAA, 20},
+	{dns.TypeMX, 10},
+	{dns.TypeTXT, 8},
+	{dns.TypeNS, 5},
+	{dns.TypeSOA, 5},
+	{dns.TypeCNAME, 4},
+	{dns.TypeSRV, 3},
+	{dns.TypePTR, 2},
+	{dns.TypeDS, 2},
+	{dns.TypeDNSKEY, 1},
+}
+
+var weightedQTypePool []uint16
+
+func init() {
+	for _, wt := range weightedQTypes {
+		for i := 0; i < wt.weight; i++ {
+			weightedQTypePool = append(weightedQTypePool, wt.qtype)
+		}
+	}
 }
 
 // parseQType resolves the --qtype flag to a miekg/dns type code.
@@ -59,9 +74,9 @@ func parseQType(s string) (uint16, error) {
 	return 0, fmt.Errorf("unknown RR type: %s", s)
 }
 
-// pickQType returns a random type from randomQTypes.
+// pickQType returns a weighted-random type from the pool.
 func pickQType() uint16 {
-	return randomQTypes[rand.Intn(len(randomQTypes))]
+	return weightedQTypePool[rand.Intn(len(weightedQTypePool))]
 }
 
 // makeClients returns one or two dns.Clients based on the --transport

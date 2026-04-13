@@ -2,10 +2,11 @@ package traffic
 
 import (
 	"bufio"
-	"crypto/rand"
+	crand "crypto/rand"
 	"fmt"
 	"log"
 	"math/big"
+	"math/rand"
 	"os"
 	"os/signal"
 	"strings"
@@ -17,13 +18,13 @@ import (
 )
 
 var (
-	shapeName    string
-	peakCount    int
-	qnameFile    string
-	randomPrefix bool
-	serverMode   bool
-	logFile      string
-	maxTime      time.Duration
+	shapeName       string
+	peakCount       int
+	qnameFile       string
+	randomPrefixPct int
+	serverMode      bool
+	logFile         string
+	maxTime         time.Duration
 )
 
 var TrafficRunCmd = &cobra.Command{
@@ -94,7 +95,7 @@ func init() {
 	TrafficRunCmd.Flags().StringVar(&shapeName, "shape", "trapezoid", "QPS shape (see --help for list)")
 	TrafficRunCmd.Flags().IntVar(&peakCount, "peaks", 3, "Number of peaks per cycle (only for 'peaks' shape)")
 	TrafficRunCmd.Flags().StringVar(&qnameFile, "qname-file", "", "File with base qnames (one per line)")
-	TrafficRunCmd.Flags().BoolVar(&randomPrefix, "random-prefix", false, "Prepend a random label to each qname")
+	TrafficRunCmd.Flags().IntVar(&randomPrefixPct, "random-prefix", 0, "Percentage of qnames that get a random prefix (0-100)")
 	TrafficRunCmd.Flags().BoolVar(&serverMode, "server", false, "Run as a background server (detach from terminal)")
 	TrafficRunCmd.Flags().StringVar(&logFile, "logfile", "", "Log file (default: stderr; useful with --server)")
 	TrafficRunCmd.Flags().DurationVar(&maxTime, "maxtime", 0, "Maximum run time (required for --server, e.g. 30m, 2h)")
@@ -123,15 +124,15 @@ func runTraffic(cmd *cobra.Command, args []string) {
 	if ServerRunning() {
 		fmt.Println("Server already running — sending new configuration.")
 		resp, err := SendCommand(ControlCommand{
-			Action:       "run",
-			Shape:        shapeName,
-			Peaks:        peakCount,
-			MaxQPS:       maxQPS,
-			Cycle:        Duration(cycleDuration),
-			Targets:      targetList,
-			Names:        names,
-			RandomPrefix: randomPrefix,
-			Transport:    trafficTransport,
+			Action:          "run",
+			Shape:           shapeName,
+			Peaks:           peakCount,
+			MaxQPS:          maxQPS,
+			Cycle:           Duration(cycleDuration),
+			Targets:         targetList,
+			Names:           names,
+			RandomPrefixPct: randomPrefixPct,
+			Transport:       trafficTransport,
 		})
 		if err != nil {
 			log.Fatalf("Failed to reconfigure server: %v", err)
@@ -161,8 +162,8 @@ func runTraffic(cmd *cobra.Command, args []string) {
 
 	clients := makeClients(trafficTransport)
 
-	log.Printf("Starting traffic: shape=%s maxQPS=%d cycle=%v targets=%d qnames=%d randomPrefix=%v transport=%s",
-		shapeName, maxQPS, cycleDuration, len(targets), len(names), randomPrefix, trafficTransport)
+	log.Printf("Starting traffic: shape=%s maxQPS=%d cycle=%v targets=%d qnames=%d randomPrefix=%d%% transport=%s",
+		shapeName, maxQPS, cycleDuration, len(targets), len(names), randomPrefixPct, trafficTransport)
 	if maxTime > 0 {
 		log.Printf("Maximum run time: %v", maxTime)
 	}
@@ -222,7 +223,7 @@ func runTraffic(cmd *cobra.Command, args []string) {
 			peakCount = newCfg.Peaks
 			maxQPS = newCfg.MaxQPS
 			cycleDuration = time.Duration(newCfg.Cycle)
-			randomPrefix = newCfg.RandomPrefix
+			randomPrefixPct = newCfg.RandomPrefixPct
 			names = newCfg.Names
 			shapeFn = resolveShape()
 			if newCfg.Transport != "" {
@@ -247,8 +248,8 @@ func runTraffic(cmd *cobra.Command, args []string) {
 			}
 
 			queryNames := names
-			if randomPrefix {
-				queryNames = addRandomPrefixes(names)
+			if randomPrefixPct > 0 {
+				queryNames = addRandomPrefixes(names, randomPrefixPct)
 			}
 			targets = sendQueries(targets, queryNames, qps, clients)
 		}
@@ -304,11 +305,15 @@ func loadQnameFile(path string) []string {
 	return names
 }
 
-// addRandomPrefixes prepends a random 8-char label to each qname.
-func addRandomPrefixes(names []string) []string {
+// addRandomPrefixes prepends a random 8-char label to pct% of the qnames.
+func addRandomPrefixes(names []string, pct int) []string {
 	out := make([]string, len(names))
 	for i, name := range names {
-		out[i] = randomLabel(8) + "." + name
+		if rand.Intn(100) < pct {
+			out[i] = randomLabel(8) + "." + name
+		} else {
+			out[i] = name
+		}
 	}
 	return out
 }
@@ -318,7 +323,7 @@ const labelChars = "abcdefghijklmnopqrstuvwxyz0123456789"
 func randomLabel(n int) string {
 	b := make([]byte, n)
 	for i := range b {
-		idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(labelChars))))
+		idx, _ := crand.Int(crand.Reader, big.NewInt(int64(len(labelChars))))
 		b[i] = labelChars[idx.Int64()]
 	}
 	return string(b)

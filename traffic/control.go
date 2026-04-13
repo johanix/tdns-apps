@@ -16,13 +16,13 @@ type ControlCommand struct {
 	Action string `json:"action"` // "run", "stop", "extend", "status"
 
 	// For "run": new traffic parameters.
-	Shape        string   `json:"shape,omitempty"`
-	Peaks        int      `json:"peaks,omitempty"`
-	MaxQPS       int      `json:"max_qps,omitempty"`
-	Cycle        Duration `json:"cycle,omitempty"`
-	Targets      []string `json:"targets,omitempty"`
-	Names        []string `json:"names,omitempty"`
-	RandomPrefix bool     `json:"random_prefix,omitempty"`
+	Shape           string   `json:"shape,omitempty"`
+	Peaks           int      `json:"peaks,omitempty"`
+	MaxQPS          int      `json:"max_qps,omitempty"`
+	Cycle           Duration `json:"cycle,omitempty"`
+	Targets         []string `json:"targets,omitempty"`
+	Names           []string `json:"names,omitempty"`
+	RandomPrefixPct int      `json:"random_prefix_pct,omitempty"`
 
 	// For "run": query transport (udp, tcp, both).
 	Transport string `json:"transport,omitempty"`
