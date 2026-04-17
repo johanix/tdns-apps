@@ -145,12 +145,14 @@ func (s *QuerySession) LogBlocked(qname string, qtype uint16, parentID uint64, r
 	})
 }
 
-func (s *QuerySession) UpdateResponse(id uint64, rcode int) {
+func (s *QuerySession) UpdateIterResponse(parentID uint64, qname string, qtype uint16, serverName string, rcode int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := len(s.entries) - 1; i >= 0; i-- {
-		if s.entries[i].ID == id {
-			s.entries[i].Rcode = rcode
+		e := &s.entries[i]
+		if e.Category == QueryIterative && e.ParentID == parentID &&
+			e.Qname == qname && e.Qtype == qtype && e.ServerName == serverName {
+			e.Rcode = rcode
 			return
 		}
 	}
@@ -377,11 +379,15 @@ func onOutboundQuery(ctx context.Context, qname string, qtype uint16,
 }
 
 // onResponse is called after the IMR receives a response from an auth server.
+// Updates the most recent matching ITER entry with the response rcode.
 func onResponse(ctx context.Context, qname string, qtype uint16,
 	serverName string, serverAddr string, transport core.Transport,
 	response *dns.Msg, rcode int) {
-	// Observe-only: we could record rcode on the matching entry if needed.
-	// For now, this hook is available for future enhancements.
+	if !session.IsActive() {
+		return
+	}
+	parentID := ddepParentID(ctx)
+	session.UpdateIterResponse(parentID, qname, qtype, serverName, rcode)
 }
 
 // synthesizeBlockResponse creates a DNS response for a blocked query.

@@ -149,9 +149,12 @@ func showQueries(cmd *cobra.Command, args []string) {
 			notes += fmt.Sprintf("(parent=%d)", e.ParentID)
 		}
 
-		rcodeStr := dns.RcodeToString[e.Rcode]
-		if rcodeStr == "" {
-			rcodeStr = fmt.Sprintf("%d", e.Rcode)
+		rcodeStr := ""
+		if e.Category == QueryIterative {
+			rcodeStr = dns.RcodeToString[e.Rcode]
+			if rcodeStr == "" {
+				rcodeStr = fmt.Sprintf("%d", e.Rcode)
+			}
 		}
 
 		fmt.Printf("%-6d %-10s %-40s %-8s %-6s %-30s %s\n",
