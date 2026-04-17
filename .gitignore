@@ -37,3 +37,9 @@ go.work.sum
 *~
 
 cmd/tdns-ddep/tdns-ddep
+cmd/ddep/tdns-ddep
+cmd/sewhois/tdns-sewhois
+cmd/sewhois/*.sqlite
+cmd/sewhois/*.sqlite-wal
+cmd/sewhois/*.sqlite-shm
+cmd/sewhois/tdns-sewhois.yaml

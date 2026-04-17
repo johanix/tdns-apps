@@ -1,0 +1,25 @@
+zone:
+   # Zone to AXFR. Trailing dot optional; normalized to FQDN internally.
+   name: "se."
+   # Authoritative server (host:port) to transfer from. Must permit AXFR
+   # from this client's IP. TSIG is not yet implemented in tdns v2's AXFR
+   # path, so this must be an IP-authorized source.
+   source: "192.0.2.1:53"
+
+whois:
+   server: "whois.iis.se:43"
+   # Token-bucket rate across all workers.
+   rate_limit: 2      # queries/second
+   burst: 4
+   concurrency: 3     # parallel whois queries (bounded by rate_limit)
+   timeout_sec: 10
+
+db:
+   path: "./sewhois.sqlite"
+
+report:
+   # A delegation is flagged if ANY of these EPP status codes appears
+   # in its whois response.
+   match_statuses:
+      - serverTransferProhibited
+      - serverRenewProhibited
