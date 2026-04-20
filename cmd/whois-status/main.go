@@ -1,5 +1,5 @@
 /*
- * tdns-sewhois - fetch a zone via AXFR, whois every delegation, list
+ * tdns-whois-status - fetch a zone via AXFR, whois every delegation, list
  * domains matching specified EPP status codes.
  *
  * Copyright (c) 2026 Johan Stenstam, johan.stenstam@internetstiftelsen.se
@@ -28,7 +28,7 @@ func main() {
 		Short: "AXFR a zone, whois every delegation, report on EPP status matches",
 	}
 	root.PersistentFlags().StringVarP(&configPath, "config", "c",
-		"tdns-sewhois.yaml", "path to config file")
+		"tdns-whois-status.yaml", "path to config file")
 
 	root.AddCommand(fetchCmd())
 	root.AddCommand(scanCmd())
