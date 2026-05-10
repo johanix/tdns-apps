@@ -38,6 +38,49 @@ These were open in the design doc; pinned down before drafting this plan:
 
 ---
 
+## Code Boundary: tdns vs tdns-apps (Model 1)
+
+**Critical context:** the scanner is *already used in-process* by tdns-auth and tdns-agent. When those daemons receive a NOTIFY for CDS/CSYNC/DNSKEY, they dispatch to `conf.Internal.ScannerQ` directly — same process, in-memory channel. See `tdns/v2/notifyresponder.go:91`, `tdns/v2/main_initfuncs.go:202`. This is not a deployment of tdns-scanner as a service; it's library use.
+
+So building tdns-scanner as a standalone HTTP service raises a real question: do tdns-auth/tdns-agent get rewired to call the external service, or do they keep their in-process channel?
+
+**Three models considered:**
+
+1. **Library, used both in-process and as a service.** `tdns/v2/scanner.go` stays as a library. tdns-auth/tdns-agent keep `conf.Internal.ScannerQ`. tdns-scanner is one *additional* consumer that wraps the library with HTTP. No rewiring of auth/agent.
+2. **Service-only.** Scanner library disappears as an in-process API. Every tdns-auth/tdns-agent embeds an HTTP client, talks to a tdns-scanner service. One implementation, one wire format. But: every deployment now needs a separate tdns-scanner; HTTP overhead in the hot NOTIFY path; new failure mode (scanner unreachable → NOTIFY processing breaks); much bigger migration.
+3. **Hybrid.** Library with optional service mode, configurable per deployment.
+
+**Decision: Model 1.** Reasons:
+
+- The principle "tdns is the library + built-in daemons; tdns-apps wraps for standalone use" maps cleanly to Model 1.
+- The brittleness problem is in *labstuff*, not in tdns-auth/tdns-agent — those are working fine. No problem statement justifies forcing them to depend on an external service.
+- Model 2 is a much bigger change that we can defer until there's a specific reason (e.g. resource isolation needs, horizontal scanner scaling).
+- The "two code paths" downside of Model 1 is largely illusory — the channel-based path *uses the library*, the HTTP path *wraps* the library. The library is the single implementation; the HTTP layer is thin.
+
+### Code locations after this work
+
+| Component | Lives in | Notes |
+|---|---|---|
+| `Scanner` struct, `CheckCDS`/`CheckCSYNC`/`CheckDNSKEY` | `tdns/v2/scanner.go`, `tdns/v2/scanner_csync.go` | Existing library, unchanged in shape. Used by both in-process and HTTP-wrapped consumers. |
+| `ScanRequest`/`ScanResponse`/`ScanJobStatus` (in-process channel types) | `tdns/v2/scanner.go` | Existing types, unchanged. Used by tdns-auth/tdns-agent in-process. |
+| Per-RRtype HTTP request/response types (`ScanCDSRequest`, `ScanCDSResponse`, `ScanCSYNCResponse`, `ScanDNSKEYRequest`, ...) | `tdns/v2/scanner_api.go` (new) | Wire types — must be importable by external clients (labstuff). |
+| Per-RRtype HTTP handlers (`APIscanCDS`, `APIscanCSYNC`, `APIscanDNSKEY`) | `tdns/v2/apihandler_funcs.go` | Translate HTTP request → in-process `ScanRequest`, await `ScanResponse`, translate back to HTTP response type. |
+| `APIscannerStatus`, `APIscannerDelete` (jobs introspection) | `tdns/v2/apihandler_funcs.go` | Existing, unchanged. Possibly aliased under `/scan/jobs` path per the new API surface. |
+| Failure taxonomy (`ErrNSUnreachable`, `ErrTimeout`, ...) | `tdns/v2/scanner_errors.go` (new) | Used in both channel-based `ScanResponse.ErrorCode` and HTTP `ScanCDSResponse.ErrorCode`. |
+| `SetupAPIRouter` scanner-conditional block | `tdns/v2/apirouters.go` | Adds the new per-RRtype routes when `Globals.App.Type == AppTypeScanner`. |
+| `tdns-scanner` daemon binary (main, version, Makefile, sample config) | `tdns-apps/cmd/scanner/` | Existing shell — fleshed out to use `SetupAPIRouter` (full) instead of `SetupSimpleAPIRouter`. |
+| `tdns-scanner-cli` binary | `tdns-apps/cmd/scanner-cli/` (new) | Mirrors `tdns-cliv2` patterns. Subcommands for ping/status, jobs CRUD, ad-hoc scans. |
+| labstuff scanner client (`scanner_client.go`) | `labstuff/lib/` | The labstuff side. Imports the wire types from tdns/v2; HTTP-talks to tdns-scanner. |
+| labstuff per-zone state (`DnskeyStatus`, `Pending*`, `Current*`, `CdsStatus` tables) | `labstuff/lib/` (LabDB) | **Stays in labstuff.** No move. |
+
+### Scope of change to tdns-auth and tdns-agent: NONE for v1.
+
+They keep using `conf.Internal.ScannerQ` in-process via the channel pattern. The `Scanner` struct, the channel types, and the `CheckCDS`/`CheckCSYNC`/`CheckDNSKEY` methods are all preserved exactly as they are today. The new HTTP handlers are *additional* consumers of the same library.
+
+If a future need surfaces (e.g. "tdns-agent should use a centralized scanner pool to deduplicate scans across many agents"), Model 3 (hybrid library-or-service) becomes the natural next step. Not for this work.
+
+---
+
 ## Pass 1: What's Already In Place
 
 ### tdns scanner library — `tdns/v2/scanner.go` (1319 lines)
@@ -63,7 +106,7 @@ conf.MainLoop(ctx, stop)                       // standard event loop
 
 Sample config `tdns-scanner.sample.yaml` is mostly complete (apiserver address, apikey, certs, log file, db file).
 
-### Existing API handlers — `tdns/tdns/apihandler_funcs.go`
+### Existing API handlers — `tdns/v2/apihandler_funcs.go`
 
 - `APIscanner` (line 495) — accepts `ScannerPost{Command, ParentZone, ScanZones, ScanType, ScanTuples}`, generates JobID, queues to `scannerq`, returns `{Status: "queued", JobID, Msg}`. Currently a single discriminated endpoint, but the dispatching logic is small — easy to refactor into per-RRtype endpoints.
 - `APIscannerStatus` (line 708) — GET with optional `?job_id=X`. Returns single job or all jobs from `Scanner.Jobs` map. Includes deep-copy to avoid race conditions during JSON encoding.
@@ -71,7 +114,7 @@ Sample config `tdns-scanner.sample.yaml` is mostly complete (apiserver address, 
 
 ### Mgmt API — `SetupSimpleAPIRouter` and `SetupAPIRouter`
 
-Per `tdns/tdns/apirouters.go`:
+Per `tdns/v2/apirouters.go`:
 - `SetupSimpleAPIRouter` provides `/ping`, `/command`, `/config`, `/debug` — used by tdns-imr, current tdns-scanner (in tdns-apps), tdns-reporter
 - `SetupAPIRouter` (full version) is conditional on `Globals.App.Type`. For `AppTypeScanner` it adds `/scanner` (POST), `/scanner/status` (GET), `/scanner/delete` (DELETE) — but tdns-apps/cmd/scanner uses the *simple* one, so the scanner endpoints don't actually get exposed today.
 
@@ -103,13 +146,14 @@ All routes are X-API-Key authenticated under `/api/v1` subrouter.
 
 ### Step 2: Per-RRtype endpoint refactor
 
-**Effort: 1 day.** Replace the single `/scanner` discriminator with `/scan/cds`, `/scan/csync`, `/scan/dnskey`.
+**Effort: 1 day.** Add per-RRtype HTTP endpoints `/scan/cds`, `/scan/csync`, `/scan/dnskey`. Keep the existing in-process `ScanRequest`/`ScanResponse` channel types unchanged — they're used by tdns-auth/tdns-agent (see "Code Boundary" section) and continuing to share them with the HTTP path means one set of scan semantics, not two.
 
 **Files:**
-- `tdns/tdns/apihandler_funcs.go` — split `APIscanner` into `APIscanCDS`, `APIscanCSYNC`, `APIscanDNSKEY` (or one factory `APIscanByType(scanType)`)
-- `tdns/tdns/apirouters.go:86` — register the three new routes, keep `/scanner` as deprecated alias for one release cycle (despite the project's "no backwards compat" rule — internal tdns consumers depend on the old endpoint and will be migrated together)
+- `tdns/v2/scanner_api.go` (new) — HTTP-side per-RRtype request/response types (see below)
+- `tdns/v2/apihandler_funcs.go` — add `APIscanCDS`, `APIscanCSYNC`, `APIscanDNSKEY` handlers next to the existing `APIscanner`. Each handler decodes the new per-RRtype HTTP type, builds an in-process `ScanRequest`, sends it on `scannerq`, awaits `ScanResponse` (with timeout), translates back to the per-RRtype HTTP response type. The existing `APIscanner` is retained — it's still the entry point used by tdns-auth/tdns-agent's NOTIFY-driven dispatch via `conf.Internal.ScannerQ`.
+- `tdns/v2/apirouters.go:86` — register the three new routes alongside the existing `/scanner`. Project's "no backwards compat" rule applies: once labstuff has migrated to the new per-RRtype endpoints, the legacy `/scanner` discriminator-style endpoint can be removed.
 
-**New per-type request/response types** (in `tdns/v2/scanner.go` or a new `tdns/v2/scanner_api.go`):
+**New per-type HTTP request/response types** (in `tdns/v2/scanner_api.go`):
 
 ```go
 type ScanCDSRequest struct {

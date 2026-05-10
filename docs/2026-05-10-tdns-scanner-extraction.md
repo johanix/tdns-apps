@@ -76,11 +76,11 @@ Labstuff contains three independent scanner implementations plus an orchestratio
 The tdns codebase contains a parallel, partially-implemented scanner:
 
 #### **API Layer**  
-- **/Users/johani/src/git/tdns-project/tdns/tdns/apirouters.go** (line 85): `SetupAPIRouter()` registers `/api/v1/scanner`, `/api/v1/scanner/status`, `/api/v1/scanner/delete` endpoints (only if AppTypeScanner)
-- **/Users/johani/src/git/tdns-project/tdns/tdns/apihandler_funcs.go**: `APIscanner()`, `APIscannerStatus()`, `APIscannerDelete()` handlers; accept ScannerPost with Command="SCAN", ScanType (CDS|CSYNC|DNSKEY), ScanTuples array; return ScannerResponse with jobID + queued status; async job tracking via Scanner.Jobs map
+- **/Users/johani/src/git/tdns-project/tdns/v2/apirouters.go** (line 85): `SetupAPIRouter()` registers `/api/v1/scanner`, `/api/v1/scanner/status`, `/api/v1/scanner/delete` endpoints (only if AppTypeScanner)
+- **/Users/johani/src/git/tdns-project/tdns/v2/apihandler_funcs.go**: `APIscanner()`, `APIscannerStatus()`, `APIscannerDelete()` handlers; accept ScannerPost with Command="SCAN", ScanType (CDS|CSYNC|DNSKEY), ScanTuples array; return ScannerResponse with jobID + queued status; async job tracking via Scanner.Jobs map
 
 #### **Scanner Engine**  
-- **/Users/johani/src/git/tdns-project/tdns/tdns/scanner.go** (lines 24–575)
+- **/Users/johani/src/git/tdns-project/tdns/v2/scanner.go** (lines 1-1319) — the live tdns scanner library (note: tdns/tdns/ is the frozen legacy tree; all new work lives in tdns/v2/)
   - **ScannerEngine()** (line 107): goroutine-based dispatcher; receives ScanRequest on channel; spawns goroutines for each tuple's check function
   - **CheckCDS()** (line 423): query imr (internal recursive resolver) or all authoritative NS (if "all-ns" option); compare to CurrentData.CDS; return ScanTupleResponse with DataChanged flag
   - **CheckCSYNC_NG()** (line 537): **not implemented** (returns edns0 error code EDECSyncScannerNotImplemented)
