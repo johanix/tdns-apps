@@ -1,0 +1,65 @@
+# tdns-zonegen -- generate a delegated zone tree with per-zone DNSSEC policies.
+#
+# Run 'tdns-zonegen plan' first: it validates everything below and shows the
+# tree it would generate, without contacting a server or writing a file.
+
+# The tdns-auth whose keystore will hold the keys. Same shape as the
+# tdns-cli.yaml block, so it can be copied across.
+apiservers:
+   - name:        tdns-auth
+     baseurl:     https://127.0.0.1:8080/api/v1
+     apikey:      change-me
+     authmethod:  X-API-Key
+     # rootcafile:  /etc/tdns/certs/ca.crt   # for a CA-signed API cert
+
+zonegen:
+   output:
+      # Zone files land here, and the generated config points at these paths.
+      zonedir:     /etc/labconfig/master/tdns-auth/zones
+      # The tdns-auth blocks (policies + zones) to merge into the server config.
+      # NOT an include: file -- see the header the tool writes into it.
+      configfile:  /etc/labconfig/master/tdns-auth/pq-zones.yaml
+      # How a zone name becomes a file name. Default "%s" -> "pq.dnslab."
+      # zonefile-pattern:  "%s"
+
+   # Signature validity for every generated policy. tdns-auth requires
+   # sigvalidity.default; these are the defaults if the block is omitted.
+   sigvalidity:
+      default:  14d
+      dnskey:   30d    # re-signing a large PQ DNSKEY RRset is the costly one
+      ds:       14d
+
+   parent:
+      name:         pq.dnslab.
+      nameservers:  [ ns1.dnslab., ns2.dnslab. ]
+      addresses:    [ 172.16.1.100, "2a01:bad:cafe:f::1:100" ]
+      rname:        hostmaster.dnslab.
+      # The parent's own signing pair. Keep it classical: the parent is what a
+      # validator has to traverse to reach the interesting zones.
+      ksk:          ED25519
+      zsk:          ED25519
+
+   children:
+      # {ksk} and {zsk} become the lowercased algorithm names.
+      label:      "{ksk}-{zsk}"
+      addresses:  [ 172.16.0.1 ]
+      # Extra records, verbatim, in every child. Parsed at config-load time
+      # against each child's origin, so a typo is caught before anything runs.
+      records:
+         - "www  IN  A  172.16.0.1"
+
+      # One child zone per pair. Every pair is checked against the algorithm
+      # registry: an unknown name, or a KSK-only algorithm asked to be a ZSK,
+      # is refused here rather than by tdns-auth at zone load.
+      combos:
+         # A PQ KSK with a classical ZSK -- the algorithm-split demo: the
+         # DNSKEY response is large, every other answer stays small.
+         - { ksk: MLDSA87,   zsk: ED25519 }
+         - { ksk: MLDSA44,   zsk: ED25519 }
+         - { ksk: SLHDSA128S, zsk: ED25519 }
+         # All-PQ, both roles.
+         - { ksk: FALCON512, zsk: FALCON512 }
+         - { ksk: SQISIGN1,  zsk: SQISIGN1 }
+         # Classical, for contrast.
+         - { ksk: ED25519,   zsk: ED25519 }
+         - { ksk: RSASHA256, zsk: ED25519 }
