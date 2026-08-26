@@ -22,13 +22,13 @@ zonegen:
       zonedir: ` + dir + `/zones
       configfile: ` + dir + `/out.yaml
    parent:
-      name: pq.dnslab.
-      nameservers: [ ns1.dnslab. ]
-      addresses: [ 172.16.1.100 ]
+      name: pq.example.
+      nameservers: [ ns1.example. ]
+      addresses: [ 192.0.2.1 ]
       ksk: ED25519
       zsk: ED25519
    children:
-      addresses: [ 172.16.0.1 ]
+      addresses: [ 192.0.2.2 ]
       combos:
 ` + combos
 	if err := os.WriteFile(path, []byte(conf), 0600); err != nil {
@@ -70,7 +70,7 @@ func TestConfigDefaultsAndSigValidity(t *testing.T) {
 	if z.Children.Label != "{ksk}-{zsk}" {
 		t.Errorf("default label = %q", z.Children.Label)
 	}
-	if z.Parent.Rname != "hostmaster.pq.dnslab." {
+	if z.Parent.Rname != "hostmaster.pq.example." {
 		t.Errorf("default rname = %q", z.Parent.Rname)
 	}
 	// tdns-auth rejects a policy with no sigvalidity.default, so the tool must
@@ -118,7 +118,7 @@ func TestChildZonefileIsSelfDescribing(t *testing.T) {
 	out := tree.childZonefile(Child{
 		Combo: combo,
 		Label: combo.Label(c.Zonegen.Children.Label),
-		Name:  "mldsa87-ed25519.pq.dnslab.",
+		Name:  "mldsa87-ed25519.pq.example.",
 	})
 	// The apex TXT is the single most useful record in a tree of near-identical
 	// zones: one query says what the zone is.

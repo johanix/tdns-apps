@@ -90,9 +90,9 @@ const dnskeyResponseFloor = 1232
 // public key plus one signature -- against the 1232-byte floor. That is the
 // question large_algorithms exists to answer, so deriving it beats a
 // hand-maintained list that has to be revisited every time an algorithm is
-// added. (It reproduces the hand-written list from the pq.axfr.net testbed
-// exactly: everything PQ except SQISIGN1, whose 65+148 bytes are smaller than
-// ECDSA's.)
+// added. (It reproduces the hand-written list from the testbed this tool
+// replaces, exactly: everything PQ except SQISIGN1, whose 65+148 bytes are
+// smaller than ECDSA's.)
 func (a algInfo) IsLarge() bool {
 	return a.PubKey+a.Sig > dnskeyResponseFloor
 }

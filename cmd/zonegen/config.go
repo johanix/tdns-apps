@@ -124,8 +124,9 @@ func (c *Config) validate() error {
 		z.Output.ZoneFilePattern = "%s"
 	}
 
-	// Defaults lifted from the pq.axfr.net testbed, which has run on them for
-	// months. A long DNSKEY validity matters more than usual here: re-signing a
+	// Defaults carried over from the testbed this tool replaces, which ran on
+	// them for months. A long DNSKEY validity matters more than usual here:
+	// re-signing a
 	// DNSKEY RRset with a large PQ KSK is the expensive operation in the tree.
 	if z.SigValidity.Default == "" {
 		z.SigValidity.Default = "14d"

@@ -18,7 +18,7 @@ check-root:
 	@if [ "$$(id -u)" -ne 0 ]; then echo "Must run as root"; exit 1; fi
 
 install-dirs: check-root
-	mkdir -p /usr/local/bin
+	mkdir -p /usr/local/bin /etc/tdns
 
 install: check-root install-dirs
 	$(MAKE) -C ./zonegen/ install

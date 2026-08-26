@@ -7,12 +7,12 @@ import (
 )
 
 // TestIsLargeMatchesTheCuratedList pins the derived large-algorithm rule
-// against the hand-maintained list from the pq.axfr.net testbed, which is what
+// against the hand-maintained list from the testbed this tool replaces, which is what
 // this tool replaces. If a registry change ever moves an algorithm across the
 // line, this test says so rather than the zone quietly getting the wrong
 // large_algorithms treatment in production.
 func TestIsLargeMatchesTheCuratedList(t *testing.T) {
-	// Verbatim from pq-testbed/generate.py's LARGE, plus the two algorithms
+	// Verbatim from the python generator's LARGE list, plus the two algorithms
 	// that testbed did not link (FALCON1024, QRUOV_Q31_L3), both of which are
 	// unambiguously large.
 	curatedLarge := map[string]bool{
@@ -93,7 +93,7 @@ func TestComboLabelAndPolicyName(t *testing.T) {
 }
 
 func TestAddressRRType(t *testing.T) {
-	if addressRRType("172.16.0.1") != "A" || addressRRType("2a01:bad::1") != "AAAA" {
+	if addressRRType("192.0.2.2") != "A" || addressRRType("2001:db8::1") != "AAAA" {
 		t.Error("address type detection is wrong")
 	}
 }

@@ -51,12 +51,17 @@ PKG_TDNS_ZONEGEN:=tdns-zonegen-$(PKGVER).tgz
 # an unchanged tree does not rebuild a 30 MB package on every invocation.
 # That is also why PKGVER is computed here rather than left to mkpkg.sh: the
 # output filename has to be known before the script runs.
+# The prefix is "/" rather than /usr/local because the package ships two files
+# under DIFFERENT roots: the binary in /usr/local/bin and the sample config in
+# /etc/tdns. mkpkg.sh copies each file from <prefix>/<path>, so one prefix has
+# to cover both -- and the packing list then carries full paths from the root.
 pkg_tdns_zonegen: $(PKG_TDNS_ZONEGEN)
 $(PKG_TDNS_ZONEGEN): $(PROG) install
 	PKGVERSION=$(PKGVER) \
 	PKGCOMMENT="tdns-zonegen, generates delegated zone trees with per-zone DNSSEC policies" \
-	/bin/sh ../../utils/mkpkg.sh tdns-zonegen /usr/local \
-	bin/tdns-zonegen
+	/bin/sh ../../utils/mkpkg.sh tdns-zonegen / \
+	usr/local/bin/tdns-zonegen \
+	etc/tdns/tdns-zonegen.sample.yaml
 
 lint:
 	go fmt ./...

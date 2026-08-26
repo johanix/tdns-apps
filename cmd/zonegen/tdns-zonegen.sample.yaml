@@ -2,6 +2,9 @@
 #
 # Run 'tdns-zonegen plan' first: it validates everything below and shows the
 # tree it would generate, without contacting a server or writing a file.
+#
+# Addresses below are from the documentation ranges (RFC 5737, RFC 3849) --
+# replace them with your own before generating anything.
 
 # The tdns-auth whose keystore will hold the keys. Same shape as the
 # tdns-cli.yaml block, so it can be copied across.
@@ -15,11 +18,11 @@ apiservers:
 zonegen:
    output:
       # Zone files land here, and the generated config points at these paths.
-      zonedir:     /etc/labconfig/master/tdns-auth/zones
-      # The tdns-auth blocks (policies + zones) to merge into the server config.
-      # NOT an include: file -- see the header the tool writes into it.
-      configfile:  /etc/labconfig/master/tdns-auth/pq-zones.yaml
-      # How a zone name becomes a file name. Default "%s" -> "pq.dnslab."
+      zonedir:     /etc/tdns/zones
+      # The tdns-auth blocks (policies + zones) to merge into the server
+      # config. NOT an include: file -- see the header the tool writes into it.
+      configfile:  /etc/tdns/auth-pq-zones.yaml
+      # How a zone name becomes a file name. Default "%s" -> "pq.example."
       # zonefile-pattern:  "%s"
 
    # Signature validity for every generated policy. tdns-auth requires
@@ -30,10 +33,10 @@ zonegen:
       ds:       14d
 
    parent:
-      name:         pq.dnslab.
-      nameservers:  [ ns1.dnslab., ns2.dnslab. ]
-      addresses:    [ 172.16.1.100, "2a01:bad:cafe:f::1:100" ]
-      rname:        hostmaster.dnslab.
+      name:         pq.example.
+      nameservers:  [ ns1.example., ns2.example. ]
+      addresses:    [ 192.0.2.1, "2001:db8::1" ]
+      rname:        hostmaster.example.
       # The parent's own signing pair. Keep it classical: the parent is what a
       # validator has to traverse to reach the interesting zones.
       ksk:          ED25519
@@ -42,11 +45,11 @@ zonegen:
    children:
       # {ksk} and {zsk} become the lowercased algorithm names.
       label:      "{ksk}-{zsk}"
-      addresses:  [ 172.16.0.1 ]
+      addresses:  [ 192.0.2.2 ]
       # Extra records, verbatim, in every child. Parsed at config-load time
       # against each child's origin, so a typo is caught before anything runs.
       records:
-         - "www  IN  A  172.16.0.1"
+         - "www  IN  A  192.0.2.2"
 
       # One child zone per pair. Every pair is checked against the algorithm
       # registry: an unknown name, or a KSK-only algorithm asked to be a ZSK,
@@ -54,12 +57,12 @@ zonegen:
       combos:
          # A PQ KSK with a classical ZSK -- the algorithm-split demo: the
          # DNSKEY response is large, every other answer stays small.
-         - { ksk: MLDSA87,   zsk: ED25519 }
-         - { ksk: MLDSA44,   zsk: ED25519 }
+         - { ksk: MLDSA87,    zsk: ED25519 }
+         - { ksk: MLDSA44,    zsk: ED25519 }
          - { ksk: SLHDSA128S, zsk: ED25519 }
          # All-PQ, both roles.
-         - { ksk: FALCON512, zsk: FALCON512 }
-         - { ksk: SQISIGN1,  zsk: SQISIGN1 }
+         - { ksk: FALCON512,  zsk: FALCON512 }
+         - { ksk: SQISIGN1,   zsk: SQISIGN1 }
          # Classical, for contrast.
-         - { ksk: ED25519,   zsk: ED25519 }
-         - { ksk: RSASHA256, zsk: ED25519 }
+         - { ksk: ED25519,    zsk: ED25519 }
+         - { ksk: RSASHA256,  zsk: ED25519 }

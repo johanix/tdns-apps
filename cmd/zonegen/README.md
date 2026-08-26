@@ -3,16 +3,17 @@
 Generates a delegated zone tree in which every child zone is signed with a
 different KSK/ZSK algorithm pair — the shape of a DNSSEC algorithm testbed.
 
-It was written to replace the python generator behind `pq.axfr.net`, and to
-make that testbed reproducible somewhere other than the machine it grew on.
+It was written to replace a python generator that built one such testbed by
+hand, and to make that arrangement reproducible somewhere other than the
+machine it grew on.
 Nothing about it is PQ-specific: the pairs come from config, and everything the
 tool knows about an algorithm comes from the algorithm registry.
 
 ## What it produces
 
-For a parent `pq.dnslab.` and a list of pairs:
+For a parent `pq.example.` and a list of pairs:
 
-- **one zone file per child**, `<ksk>-<zsk>.pq.dnslab.`, each with a
+- **one zone file per child**, `<ksk>-<zsk>.pq.example.`, each with a
   self-describing apex TXT (`KSK=MLDSA87 (201) ZSK=ED25519 (15)`);
 - **the parent zone file**, delegations and **DS records already in it**;
 - **a tdns-auth config block** — one DNSSEC policy per pair, plus the derived
