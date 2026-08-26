@@ -24,6 +24,40 @@ netbsd:
 test:
 	$(GO) test -v -cover
 
+# --- NetBSD binary packages -------------------------------------------------
+#
+# See ../../utils/mkpkg.sh for why these are packages and not bintars. In
+# short: a package leaves a record on the machine (pkg_info answers "which
+# build is this?", pkg_delete undoes it), and it can be pkg_add'ed into a VM
+# image before first boot.
+#
+# VERSION lives at the repo root and this file is included from cmd/<app>/,
+# so the lookup walks up rather than assuming one depth -- matching tdns,
+# where the same file is included from three different depths.
+#
+# "!=" rather than "$(shell ...)": $(shell) is GNU-make only and under
+# NetBSD's bmake expands to NOTHING, silently. That once produced a plausibly
+# named, full-size, VERSIONLESS package. mkpkg.sh refuses such a version; this
+# is the other half of that fix. It also means these targets do not work under
+# macOS's make 3.81, which predates "!=" -- build packages on the NetBSD build
+# host, which is where they belong anyway.
+PKGBASEVER!= for f in ../../VERSION ../VERSION VERSION; do if [ -f "$$f" ]; then sed -e 's/^[vV]//' -e 's/[^0-9.].*$$//' "$$f"; break; fi; done 2>/dev/null || echo ""
+PKGDATE!= date +%Y%m%d
+PKGVER=$(PKGBASEVER).$(PKGDATE)
+
+PKG_TDNS_ZONEGEN:=tdns-zonegen-$(PKGVER).tgz
+
+# A real file target with the binary as a prerequisite, not a phony one, so
+# an unchanged tree does not rebuild a 30 MB package on every invocation.
+# That is also why PKGVER is computed here rather than left to mkpkg.sh: the
+# output filename has to be known before the script runs.
+pkg_tdns_zonegen: $(PKG_TDNS_ZONEGEN)
+$(PKG_TDNS_ZONEGEN): $(PROG) install
+	PKGVERSION=$(PKGVER) \
+	PKGCOMMENT="tdns-zonegen, generates delegated zone trees with per-zone DNSSEC policies" \
+	/bin/sh ../../utils/mkpkg.sh tdns-zonegen /usr/local \
+	bin/tdns-zonegen
+
 lint:
 	go fmt ./...
 	go vet ./...
@@ -31,4 +65,4 @@ lint:
 	gosec ./...
 	golangci-lint run
 
-.PHONY: build clean
+.PHONY: build clean pkg_tdns_zonegen

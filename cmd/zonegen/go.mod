@@ -2,26 +2,23 @@ module tdns-zonegen
 
 go 1.25.2
 
+// tdns/v2 requires its own sub-modules at the placeholder version Go writes
+// when a replace supplies them, and resolves those with ./cache-style relative
+// replaces -- which Go ignores once v2 is a dependency rather than the main
+// module. Same for the miekg fork v2 is built against. So every external
+// consumer has to restate them. These point at published versions, not at a
+// sibling checkout, so this module builds anywhere.
 replace (
-	github.com/johanix/tdns/v2 => ../../../tdns/v2
-	github.com/johanix/tdns/v2/cache => ../../../tdns/v2/cache
-	github.com/johanix/tdns/v2/cli => ../../../tdns/v2/cli
-	github.com/johanix/tdns/v2/core => ../../../tdns/v2/core
-	github.com/johanix/tdns/v2/crypto => ../../../tdns/v2/crypto
-	github.com/johanix/tdns/v2/edns0 => ../../../tdns/v2/edns0
-	github.com/johanix/tdns/v2/hpke => ../../../tdns/v2/hpke
-	github.com/johanix/tdns/v2/jose => ../../../tdns/v2/jose
+	github.com/johanix/tdns/v2/cache => github.com/johanix/tdns/v2/cache v0.0.0-20260826100332-bd4f141aa912
+	github.com/johanix/tdns/v2/core => github.com/johanix/tdns/v2/core v0.0.0-20260826100332-bd4f141aa912
+	github.com/johanix/tdns/v2/edns0 => github.com/johanix/tdns/v2/edns0 v0.0.0-20260826100332-bd4f141aa912
+	github.com/miekg/dns => github.com/johanix/dns v1.1.72-johanix.2
 )
-
-// tdns/v2 builds against the johanix fork (it carries the pluggable-algorithm
-// registry). This module must resolve to the same one or the dns.* types on
-// each side of the API boundary are different types.
-replace github.com/miekg/dns => github.com/johanix/dns v1.1.72-johanix.2
 
 require (
 	github.com/johanix/dnssec-algorithms v0.0.0-20260721160004-987f1d5cbfd8
-	github.com/johanix/tdns/v2 v2.0.0-00010101000000-000000000000
-	github.com/johanix/tdns/v2/cli v0.0.0-00010101000000-000000000000
+	github.com/johanix/tdns/v2 v2.0.0-20260826100332-bd4f141aa912
+	github.com/johanix/tdns/v2/cli v0.0.0-20260826100332-bd4f141aa912
 	github.com/miekg/dns v1.1.70
 	github.com/spf13/cobra v1.8.1
 	gopkg.in/yaml.v3 v3.0.1

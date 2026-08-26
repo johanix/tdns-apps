@@ -153,6 +153,16 @@ github.com/johanix/dns v1.1.72-johanix.2 h1:7w1oHX0EAYrWq04JI8QGnGp3j/08ESjonRld
 github.com/johanix/dns v1.1.72-johanix.2/go.mod h1:hBcNfObhP6OL8tg/LRRiRxqToCk64JmTahUFw2q39GM=
 github.com/johanix/dnssec-algorithms v0.0.0-20260721160004-987f1d5cbfd8 h1:EM812EM9iBV6JMj8ZMVes2vieF4LwyROOcOl45Q/JeE=
 github.com/johanix/dnssec-algorithms v0.0.0-20260721160004-987f1d5cbfd8/go.mod h1:CLJcOvHNaVOp5ciu58vfs+cJQT2dW5pjoUOj6sXNKAE=
+github.com/johanix/tdns/v2 v2.0.0-20260826100332-bd4f141aa912 h1:tOUDE/z208ku2h87iB8HsTaBBMh76lHRhmbWT2/7OVw=
+github.com/johanix/tdns/v2 v2.0.0-20260826100332-bd4f141aa912/go.mod h1:OfjEMkZvXjR5at7MqtglNiHHikIXxSAQ2paRtwnh/4k=
+github.com/johanix/tdns/v2/cache v0.0.0-20260826100332-bd4f141aa912 h1:2Ox1KQmYiPkYC4up5WcOSVX5OGzrFSWl4W/8LTf6ztY=
+github.com/johanix/tdns/v2/cache v0.0.0-20260826100332-bd4f141aa912/go.mod h1:RceAj+WkiM1eltthyx8W+9plAxfhGCCsbbyt9BTJk7w=
+github.com/johanix/tdns/v2/cli v0.0.0-20260826100332-bd4f141aa912 h1:2jp8BYaiCdiGgI2d8SAmgeYnEIZMe9OqAF4sUu8qqAY=
+github.com/johanix/tdns/v2/cli v0.0.0-20260826100332-bd4f141aa912/go.mod h1:3h5Th7ctdgfDvpt68ComszrIp4S58zLrJnYNXeP1tek=
+github.com/johanix/tdns/v2/core v0.0.0-20260826100332-bd4f141aa912 h1:b90MgMFGoSBXbvXjv4kPpVNGFwfLdziGUtKMOOZ2L5s=
+github.com/johanix/tdns/v2/core v0.0.0-20260826100332-bd4f141aa912/go.mod h1:zE18P/6FjVjdIl43gaqH6dVNaIZAkQMiW9N1lO7JtEg=
+github.com/johanix/tdns/v2/edns0 v0.0.0-20260826100332-bd4f141aa912 h1:Z/I1LMnx82VcP1C1kcbrdLC1uvVcgEToGuWoTGQGqLU=
+github.com/johanix/tdns/v2/edns0 v0.0.0-20260826100332-bd4f141aa912/go.mod h1:oWrfluZXxftvv6KegytlvA734K91PCQqrCKKNasVXOc=
 github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1:6v2b51hI/fHJwM22ozAgKL4VKDeJcHhJFhtBdhmNjmU=
 github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/XSXhF0NWZEnDohbsk=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
