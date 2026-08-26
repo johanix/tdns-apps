@@ -79,3 +79,16 @@ The tool stops short of three things, deliberately:
    `tdns-cli auth keystore dnssec bulk-export --dest <keydir> --zones <parent>`
    and commit the result, so a rebuilt host restores the same keys and every
    committed DS stays valid.
+
+## Packaging
+
+tdns-apps ships a **single** NetBSD binary package for all its apps, not one
+per app:
+
+```sh
+make -C .. pkg        # as root, on a NetBSD host -> tdns-apps-<version>.tgz
+```
+
+It contains `/usr/local/bin/tdns-zonegen` and
+`/etc/tdns/tdns-zonegen.sample.yaml`. Adding an app means adding it to
+`PKG_APPS` and its installed files to `PKG_FILES` in `../Makefile`.

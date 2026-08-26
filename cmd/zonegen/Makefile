@@ -15,8 +15,13 @@ install:
 	install -s -b -c ${PROG} /usr/local/bin/
 	install -c -m 0644 ${PROG}.sample.yaml /etc/tdns/
 
-# NetBSD binary package; rule and rationale in ../../utils/Makefile.common.
-pkg:	pkg_tdns_zonegen
+# There is ONE package for the whole repo, built one level up -- see ../Makefile.
+# Kept here only so running "make pkg" in an app directory says where to go
+# rather than failing with "don't know how to make pkg".
+pkg:
+	@echo "tdns-apps ships a single package for all its apps; build it with:"
+	@echo "    make -C .. pkg"
+	@false
 
 clean:
 	rm -f $(PROG)
