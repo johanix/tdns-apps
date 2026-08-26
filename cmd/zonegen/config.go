@@ -208,7 +208,7 @@ func (c *Config) validate() error {
 	for _, combo := range ch.Combos {
 		origin := combo.Label(ch.Label) + "." + p.Name
 		for _, rec := range ch.Records {
-			if _, err := dns.NewRR(fmt.Sprintf("$ORIGIN %s\n$TTL %d\n%s", origin, defaultTTL, rec)); err != nil {
+			if _, err := expandRecord(origin, rec); err != nil {
 				return fmt.Errorf("zonegen.children.records: %q is not a valid record: %v", rec, err)
 			}
 		}

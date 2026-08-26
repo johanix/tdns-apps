@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/miekg/dns"
 )
 
 func writeConf(t *testing.T, combos string) string {
@@ -134,5 +136,65 @@ func TestNewSerialIsDateBased(t *testing.T) {
 	got := NewSerial(time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC))
 	if got != 2026080600 {
 		t.Errorf("NewSerial = %d, want 2026080600", got)
+	}
+}
+
+// TestGeneratedZonesAreFullyQualified parses the generated zone files with an
+// EMPTY origin. That is the whole test: with no origin, the parser cannot
+// resolve a relative name, so this only succeeds if every owner name -- and
+// every name in the rdata -- is already absolute. A "@" or a bare "www" fails
+// here rather than in a zone file someone has to read.
+func TestGeneratedZonesAreFullyQualified(t *testing.T) {
+	c, err := LoadConfig(writeConf(t, "         - { ksk: MLDSA87, zsk: ED25519 }\n"))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	c.Zonegen.Children.Records = []string{"www  IN  A  192.0.2.2"}
+
+	combo := c.Zonegen.Children.Combos[0]
+	child := Child{
+		Combo: combo,
+		Label: combo.Label(c.Zonegen.Children.Label),
+		Name:  "mldsa87-ed25519.pq.example.",
+		DS:    []string{"12345 201 2 " + strings.Repeat("AB", 32)},
+	}
+	tree := &Tree{Conf: c, Serial: 2026082600, Children: []Child{child}}
+
+	for name, zonefile := range map[string]string{
+		"child":  tree.childZonefile(child),
+		"parent": tree.parentZonefile(),
+	} {
+		zp := dns.NewZoneParser(strings.NewReader(zonefile), "", "")
+		n := 0
+		for rr, ok := zp.Next(); ok; rr, ok = zp.Next() {
+			n++
+			if owner := rr.Header().Name; !dns.IsFqdn(owner) {
+				t.Errorf("%s zone: owner %q is not fully qualified", name, owner)
+			}
+		}
+		if err := zp.Err(); err != nil {
+			t.Errorf("%s zone does not parse without an origin (a relative name?): %v\n%s",
+				name, err, zonefile)
+		}
+		if n == 0 {
+			t.Errorf("%s zone parsed to no records:\n%s", name, zonefile)
+		}
+	}
+}
+
+// The generated files say "do not edit by hand", so $ORIGIN would be dead
+// weight -- and worse, an invitation to add a relative name that the rest of
+// the file does not use.
+func TestGeneratedZonesCarryNoOrigin(t *testing.T) {
+	c, err := LoadConfig(writeConf(t, "         - { ksk: ED25519, zsk: ED25519 }\n"))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	tree := &Tree{Conf: c, Serial: 2026082600}
+	out := tree.parentZonefile()
+	for _, unwanted := range []string{"$ORIGIN", "$TTL", "\n@\t", "\n@ "} {
+		if strings.Contains(out, unwanted) {
+			t.Errorf("generated zone still contains %q:\n%s", unwanted, out)
+		}
 	}
 }
