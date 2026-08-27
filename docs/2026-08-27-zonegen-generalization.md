@@ -1,8 +1,9 @@
 # tdns-zonegen: from an algorithm matrix to a zone generator
 
-2026-08-27. Status: **implemented.** All four generators, `--update`, and the
-API-connection resolution are built and tested; nothing is committed yet
-(signing was unavailable).
+2026-08-27. Status: **implemented and under review.** All four generators,
+`--update` and the API-connection resolution are built, tested and committed;
+[tdns-apps#1](https://github.com/johanix/tdns-apps/pull/1) is open. Review round
+one is addressed — see the section at the end.
 
 ## The problem
 
@@ -157,3 +158,50 @@ incremented.
 ~2,900 lines across 15 files in `cmd/zonegen`, of which ~1,000 are tests. The
 estimate in the earlier draft (+700/−250 for the unified model) does not compare
 usefully: that design was replaced, and four generators is more than one.
+
+## Review round one
+
+An external review of PR #1 requested changes. Six findings, all real, all
+fixed. Two are worth recording because of what they say about the original
+work rather than the code:
+
+**The serial fix was only half done.** `NewSerial(now, previous)` was correct,
+but only `--update` ever passed `previous`; the plain regenerate path passed 0.
+So the original bug survived on the path an operator actually uses when they
+change flags and regenerate: new content, same `YYYYMMDD00`, invisible to every
+secondary. The commit message claimed the bug was closed. It was not. A
+regenerate now reads the SOA serial of whatever it is overwriting — the highest
+across the set, since one serial covers all of it.
+
+**The README documented a CLI this change deletes.** It still described
+`plan` / `generate` / `delegation` as subcommands. The sample config and this
+document were both updated in the same change; the README was missed entirely,
+because the check for stale docs was a grep of the repo-root README rather than
+the one next to the code.
+
+The rest:
+
+- `--addr-pool` with a `/32` panicked — size 1, then a modulo by size-1 == 0.
+  A `/0` overflowed `1<<32` to zero. The default `/24` hid both.
+- `fromAuthConfig` derived the scheme from whether `certfile` was set. tdns
+  marks `apiserver.certfile` `validate:"required"`, so a cert path is present
+  even on a server that never offers TLS, and the derivation would point
+  `https://` at a plain HTTP listener. It now reads `usetls`. Note the review
+  suggested defaulting that to true "as the daemon does" — the daemon does the
+  opposite: `UseTLS` is a plain bool with no `SetDefault`, so unset means false
+  and `apirouters.go` serves HTTP. Mirroring the daemon means defaulting to
+  HTTP, which is what was implemented.
+- An IPv6 wildcard listen address became `127.0.0.1`, which would never reach a
+  server bound IPv6-only. It now becomes `::1`, keeping the family.
+- `buildPqtree` never called `AddGlue`, so the one generator whose zones the
+  BIND-load fix was discovered on was the one still able to produce a zone that
+  will not load — for an operator who sets in-bailiwick nameservers.
+- Churn gave its split remainder to adds, so every update grew the zone by up
+  to two names. Adds now equal removes and the remainder goes to
+  modifications, which are size-neutral.
+- Churn could remake or delete a delegation, replacing its NS with ordinary
+  records or stranding its glue and occluded name. Cuts and everything below
+  them are now held out of the victim set.
+
+Each fix has a regression test, and the three behavioural ones (serial on
+regenerate, size stability, delegation preservation) are mutation-verified.
