@@ -1,0 +1,21 @@
+# CodeRabbit Configuration
+language: "en-US"
+
+reviews:
+  profile: "assertive"
+
+  # Only review Go source under cmd/. Each app there is its own Go module.
+  path_filters:
+    - "cmd/**/*.go"
+    - "!**/testdata/**"
+    - "!**/fixtures/**"
+    - "!**/vendor/**"
+
+  tools:
+    # golangci-lint is disabled for the same reason as in the tdns repo:
+    # CodeRabbit invokes it as `golangci-lint ./...` from the repo root, which
+    # fails in this multi-module layout -- every app under cmd/ has its own
+    # go.mod, and none of them is at the root. The run then lints nothing but
+    # that error. Developers run golangci-lint per-module locally instead.
+    golangci-lint:
+      enabled: false
