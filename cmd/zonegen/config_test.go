@@ -143,7 +143,7 @@ func TestGeneratedPolicyCarriesSigValidity(t *testing.T) {
 
 	for _, want := range []string{
 		"sigvalidity:", "default:  14d",
-		"large_algorithms:  [ MLDSA87 ]", // derived, not configured
+		"large-algorithms:  [ MLDSA87 ]", // derived, not configured
 		"MLDSA87:  [ ED25519 ]",          // the split the pair requires
 		"dnssecpolicy:  mldsa87-ed25519",
 	} {

@@ -278,7 +278,15 @@ func printPlan(c *Config, zs *ZoneSet, o *runOptions) {
 
 func printNextSteps(c *Config, zs *ZoneSet) {
 	fmt.Printf("\nStill to do, by hand:\n")
-	fmt.Printf("  1. merge %s into the tdns-auth config and reload\n", c.Zonegen.Output.ConfigFile)
+	// An opt-in include beats pasting: re-running this tool then updates the
+	// server's view with a reload, instead of needing the block spliced in
+	// again by hand every time the zone set changes.
+	fmt.Printf("  1. include %s from the tdns-auth config, and reload:\n\n", c.Zonegen.Output.ConfigFile)
+	fmt.Printf("        include:\n")
+	fmt.Printf("           - file:   %s\n", c.Zonegen.Output.ConfigFile)
+	fmt.Printf("             merge:  true\n\n")
+	fmt.Printf("     merge: true is required -- a bare include replaces the server's\n")
+	fmt.Printf("     zones: list rather than adding to it.\n")
 	if snippet := zs.DelegationSnippet(); snippet != "" {
 		fmt.Printf("  2. add this delegation to the parent of %s:\n\n", zs.Apex)
 		fmt.Print(snippet)

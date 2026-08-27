@@ -205,3 +205,34 @@ The rest:
 
 Each fix has a regression test, and the three behavioural ones (serial on
 regenerate, size stability, delegation preservation) are mutation-verified.
+
+## Follow-up: in sync with tdns's config after #404/#406 (2026-08-28)
+
+Two tdns changes landed and both reach the file zonegen generates.
+
+**tdns#406** respelled every config key with hyphens and kept no alias, so
+`large_algorithms`/`split_algorithms` became `large-algorithms`/
+`split-algorithms`. The failure mode was silence: the daemon's decoder ignores a
+key it has no tag for, so the old spelling would not error, the guardrail would
+simply be empty, and PQ zones would be served with DNSKEY responses nothing was
+told to expect. The two names were already isolated in constants for exactly
+this, so the change is one line plus fixtures.
+
+**tdns#404** added opt-in include merging, which changes the *workflow* rather
+than the content. The generated block used to carry a header saying "do NOT
+pull this in with include:", because a bare include replaces the server's
+`zones:` list wholesale. Now it can be included with `merge: true`, so the
+operator wires it in once and a re-run plus a reload is enough -- no re-pasting
+each time the zone set changes.
+
+The header, the printed next steps, the README and the sample config all say
+so, and all of them state that `merge: true` is required and that this needs a
+tdns new enough to understand the map form.
+
+Verified across both repos rather than by reading: real generated output was fed
+through tdns's own `processConfigFile` as an opt-in include. The server's own
+zone and policy survive alongside the generated ones (9 zones, 8 policies), and
+`large-algorithms` unions to 5 rather than being replaced. The warning was
+checked too: with a bare include the server's own zone is gone and tdns records
+a clobber -- so the instruction to use `merge: true` is load-bearing, not
+cautious phrasing.

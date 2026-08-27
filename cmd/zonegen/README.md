@@ -145,11 +145,26 @@ signature sizes rather than hand-listed.
 
 The tool stops short of three things, deliberately:
 
-1. **Merging the config block** into the tdns-auth config. It is emitted as a
-   block to merge, not a file to `include:` — tdns-auth's include merge replaces
-   list-valued keys wholesale, so an included file carrying `zones:` would
-   silently replace every other zone the server has. (tdns is gaining opt-in
-   merging; once that lands this can become an `include:` with `merge: true`.)
+1. **Wiring the config block in.** Add an opt-in include to the tdns-auth
+   config and reload:
+
+   ```yaml
+   include:
+      - file:   /etc/tdns/auth-generated.yaml
+        merge:  true
+   ```
+
+   `merge: true` is required. A bare include **replaces** the server's `zones:`
+   list with the generated one rather than adding to it, so every other zone on
+   the server stops being served. tdns reports that as a clobber, but the zones
+   are gone all the same.
+
+   Including beats pasting because re-running this tool then updates the
+   server's view with a reload, instead of needing the block spliced in by hand
+   every time the zone set changes. It needs a tdns with opt-in include merging;
+   on an older one the map form is not understood at all and the block has to be
+   pasted in.
+
 2. **Adding the delegation** to the parent of whatever it generated.
 3. **Exporting the keys.** Run
    `tdns-cli auth keystore dnssec bulk-export --dest <keydir> --zones <parent>`

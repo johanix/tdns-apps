@@ -51,8 +51,10 @@ zonegen:
       # Zone files land here, and the generated config points at these paths.
       # A single-zone generator can override this with --outfile.
       zonedir:     /etc/tdns/zones
-      # The tdns-auth blocks (policies + zones) to merge into the server
-      # config. NOT an include: file -- see the header the tool writes into it.
+      # The tdns-auth blocks (policies + zones). Pull this into the server
+      # config with an opt-in include -- "- file: <path>" plus "merge: true".
+      # merge: true is required; a bare include REPLACES the server's zones:
+      # list instead of adding to it. The file's own header says the same.
       configfile:  /etc/tdns/auth-generated.yaml
       # How a zone name becomes a file name. Default "%s" -> "big.example."
       # zonefile-pattern:  "%s"
