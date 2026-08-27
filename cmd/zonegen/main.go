@@ -38,6 +38,9 @@ func main() {
 Each subcommand is a different kind of zone:
 
   pqtree    a parent with one child per KSK/ZSK algorithm pair
+  tree      a delegated hierarchy of ordinary zones
+  bigzone   one zone with many names and a mix of rrtypes
+  rpz       a response-policy zone with many rules
 
 Signing is per-generator. A generator producing unsigned zones never contacts
 the keystore, and so needs no API connection and no config file at all.`,
@@ -48,7 +51,7 @@ the keystore, and so needs no API connection and no config file at all.`,
 	}
 	root.PersistentFlags().StringVar(&cfgFile, "config", defaultConfigFile, "config file")
 
-	root.AddCommand(pqtreeCmd(), versionCmd())
+	root.AddCommand(pqtreeCmd(), treeCmd(), bigzoneCmd(), rpzCmd(), versionCmd())
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
