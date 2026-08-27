@@ -30,17 +30,20 @@ import (
 
 // KeyManager wraps the management API for the two operations this tool needs.
 type KeyManager struct {
-	api *tdns.ApiClient
+	api     *tdns.ApiClient
+	baseUrl string
 }
 
-// NewKeyManager builds a client from the config's first apiservers entry.
+// NewKeyManager builds a client for an already-resolved server. Resolution --
+// which config the details came from, and which entry in it -- happens in
+// apiresolve.go, because it is a question about the host rather than about
+// keys.
 //
 // It does NOT go through cli.GetApiClient: that resolves a role name against
 // the global client table tdns-cli builds from its own multi-role config,
 // which is machinery a single-server tool has no use for. The typed keystore
 // call below IS reused -- it is the one piece worth sharing.
-func NewKeyManager(c *Config) (*KeyManager, error) {
-	s := c.ApiServers[0]
+func NewKeyManager(s ApiServerConf) (*KeyManager, error) {
 	authMethod := s.AuthMethod
 	if authMethod == "" {
 		authMethod = "X-API-Key"
@@ -49,8 +52,13 @@ func NewKeyManager(c *Config) (*KeyManager, error) {
 	if api == nil {
 		return nil, fmt.Errorf("could not create an API client for %s", s.BaseUrl)
 	}
-	return &KeyManager{api: api}, nil
+	return &KeyManager{api: api, baseUrl: s.BaseUrl}, nil
 }
+
+// BaseUrl is for reporting which keystore is about to be written to. Printing
+// it is not decoration: this tool creates key material, and the one mistake
+// worth making impossible is doing that against the wrong server.
+func (km *KeyManager) BaseUrl() string { return km.baseUrl }
 
 // EnsureKeys makes sure zone has an active KSK and ZSK of the given
 // algorithms, creating whatever is missing. It is idempotent: re-running
@@ -59,7 +67,7 @@ func NewKeyManager(c *Config) (*KeyManager, error) {
 // publishing two KSKs and the parent's DS matching only one.
 //
 // Returns the number of keys actually created.
-func (km *KeyManager) EnsureKeys(zone string, c Combo) (int, error) {
+func (km *KeyManager) EnsureKeys(zone, kskAlg, zskAlg string) (int, error) {
 	zone = dns.Fqdn(zone)
 	existing, err := km.zoneKeys(zone)
 	if err != nil {
@@ -72,8 +80,8 @@ func (km *KeyManager) EnsureKeys(zone string, c Combo) (int, error) {
 		alg     string
 		flags   uint16
 	}{
-		{"KSK", c.KSK, 257},
-		{"ZSK", c.ZSK, 256},
+		{"KSK", kskAlg, 257},
+		{"ZSK", zskAlg, 256},
 	} {
 		if have, ok := existing[want.flags]; ok {
 			// A key of the right role but the WRONG algorithm is not something

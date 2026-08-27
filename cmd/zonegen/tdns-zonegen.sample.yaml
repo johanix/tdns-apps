@@ -1,29 +1,75 @@
-# tdns-zonegen -- generate a delegated zone tree with per-zone DNSSEC policies.
+# tdns-zonegen -- generate DNS zones of various shapes, with their keys.
 #
-# Run 'tdns-zonegen plan' first: it validates everything below and shows the
-# tree it would generate, without contacting a server or writing a file.
+# One subcommand per kind of zone:
 #
-# Addresses below are from the documentation ranges (RFC 5737, RFC 3849) --
-# replace them with your own before generating anything.
+#   pqtree    a parent with one child per KSK/ZSK algorithm pair
+#   tree      a delegated hierarchy of ordinary zones
+#   bigzone   one zone with many names and a mix of rrtypes
+#   rpz       a response-policy zone with many rules
+#
+# The SHAPE of what gets generated is on the command line, where it is visible
+# in shell history and needs no file to try a variation:
+#
+#   tdns-zonegen bigzone --zone big.example. --count 100000 --types A,AAAA,MX
+#   tdns-zonegen rpz     --zone rpz.example. --count 10000 --actions nxdomain,passthru
+#   tdns-zonegen tree    --zone tree.example. --depth 3 --breadth 5
+#
+# What is in this file is the plumbing that is the same for every run on a
+# host. A generator producing UNSIGNED zones and taking its shape from flags
+# needs none of it -- rpz above runs with no config file at all.
+#
+# Run any generator with --plan first: it validates everything and describes
+# what it would generate, without contacting a server or writing a file.
+#
+# Addresses below are from the documentation ranges (RFC 5737, RFC 3849).
 
-# The tdns-auth whose keystore will hold the keys. Same shape as the
-# tdns-cli.yaml block, so it can be copied across.
-apiservers:
-   - name:        tdns-auth
-     baseurl:     https://127.0.0.1:8080/api/v1
-     apikey:      change-me
-     authmethod:  X-API-Key
-     # rootcafile:  /etc/tdns/certs/ca.crt   # for a CA-signed API cert
+# How to reach the tdns-auth whose keystore will hold the keys.
+#
+# Usually you do NOT need this block. The details already exist on a host that
+# runs tdns-auth, and can be taken from there instead of written a third time:
+#
+#   tdns-zonegen tree --tdns-auth /etc/tdns/tdns-auth.yaml ...
+#   tdns-zonegen tree --tdns-cli  /etc/tdns/tdns-cli.yaml ...
+#
+# With neither flag nor block, /etc/tdns/tdns-cli.yaml and then
+# /etc/tdns/tdns-auth.yaml are tried. Whichever way it resolves, the tool
+# always prints which file and which server it landed on before creating any
+# key material.
+#
+# A tdns-cli.yaml usually declares several servers; the authoritative one is
+# conventionally named "tdns-server". Use --apiserver to pick another.
+#
+# apiservers:
+#    - name:        tdns-server
+#      baseurl:     https://127.0.0.1:8989/api/v1
+#      apikey:      change-me
+#      authmethod:  X-API-Key
+#      # rootcafile:  /etc/tdns/certs/ca.crt   # for a CA-signed API cert
 
 zonegen:
    output:
       # Zone files land here, and the generated config points at these paths.
+      # A single-zone generator can override this with --outfile.
       zonedir:     /etc/tdns/zones
       # The tdns-auth blocks (policies + zones) to merge into the server
       # config. NOT an include: file -- see the header the tool writes into it.
-      configfile:  /etc/tdns/auth-pq-zones.yaml
-      # How a zone name becomes a file name. Default "%s" -> "pq.example."
+      configfile:  /etc/tdns/auth-generated.yaml
+      # How a zone name becomes a file name. Default "%s" -> "big.example."
       # zonefile-pattern:  "%s"
+
+   # What every generated zone inherits. Omitting the block, or any field in
+   # it, keeps the values the tool has always used.
+   # defaults:
+   #    ttl:  3600
+   #    soa:
+   #       refresh:  3600
+   #       retry:    600
+   #       expire:   1209600
+   #       minimum:  600
+   #    zone:
+   #       type:     primary
+   #       store:    map
+   #       options:  [ online-signing ]
 
    # Signature validity for every generated policy. tdns-auth requires
    # sigvalidity.default; these are the defaults if the block is omitted.
@@ -32,37 +78,44 @@ zonegen:
       dnskey:   30d    # re-signing a large PQ DNSKEY RRset is the costly one
       ds:       14d
 
-   parent:
-      name:         pq.example.
-      nameservers:  [ ns1.example., ns2.example. ]
-      addresses:    [ 192.0.2.1, "2001:db8::1" ]
-      rname:        hostmaster.example.
-      # The parent's own signing pair. Keep it classical: the parent is what a
-      # validator has to traverse to reach the interesting zones.
-      ksk:          ED25519
-      zsk:          ED25519
+   # The pqtree generator's own section. Its input is a list of algorithm
+   # pairs, which is too structured to be comfortable as a command line -- and
+   # unlike a record count, it is not something you vary between runs.
+   #
+   # Only the pqtree subcommand reads this; every other generator ignores it,
+   # and a config with no pqtree: block is perfectly valid for them.
+   pqtree:
+      parent:
+         name:         pq.example.
+         nameservers:  [ ns1.example., ns2.example. ]
+         addresses:    [ 192.0.2.1, "2001:db8::1" ]
+         rname:        hostmaster.example.
+         # The parent's own signing pair. Keep it classical: the parent is what
+         # a validator has to traverse to reach the interesting zones.
+         ksk:          ED25519
+         zsk:          ED25519
 
-   children:
-      # {ksk} and {zsk} become the lowercased algorithm names.
-      label:      "{ksk}-{zsk}"
-      addresses:  [ 192.0.2.2 ]
-      # Extra records, verbatim, in every child. Parsed at config-load time
-      # against each child's origin, so a typo is caught before anything runs.
-      records:
-         - "www  IN  A  192.0.2.2"
+      children:
+         # {ksk} and {zsk} become the lowercased algorithm names.
+         label:      "{ksk}-{zsk}"
+         addresses:  [ 192.0.2.2 ]
+         # Extra records, verbatim, in every child. Parsed at config-load time
+         # against each child's origin, so a typo is caught before anything runs.
+         records:
+            - "www  IN  A  192.0.2.2"
 
-      # One child zone per pair. Every pair is checked against the algorithm
-      # registry: an unknown name, or a KSK-only algorithm asked to be a ZSK,
-      # is refused here rather than by tdns-auth at zone load.
-      combos:
-         # A PQ KSK with a classical ZSK -- the algorithm-split demo: the
-         # DNSKEY response is large, every other answer stays small.
-         - { ksk: MLDSA87,    zsk: ED25519 }
-         - { ksk: MLDSA44,    zsk: ED25519 }
-         - { ksk: SLHDSA128S, zsk: ED25519 }
-         # All-PQ, both roles.
-         - { ksk: FALCON512,  zsk: FALCON512 }
-         - { ksk: SQISIGN1,   zsk: SQISIGN1 }
-         # Classical, for contrast.
-         - { ksk: ED25519,    zsk: ED25519 }
-         - { ksk: RSASHA256,  zsk: ED25519 }
+         # One child zone per pair. Every pair is checked against the algorithm
+         # registry: an unknown name, or a KSK-only algorithm asked to be a ZSK,
+         # is refused here rather than by tdns-auth at zone load.
+         combos:
+            # A PQ KSK with a classical ZSK -- the algorithm-split demo: the
+            # DNSKEY response is large, every other answer stays small.
+            - { ksk: MLDSA87,    zsk: ED25519 }
+            - { ksk: MLDSA44,    zsk: ED25519 }
+            - { ksk: SLHDSA128S, zsk: ED25519 }
+            # All-PQ, both roles.
+            - { ksk: FALCON512,  zsk: FALCON512 }
+            - { ksk: SQISIGN1,   zsk: SQISIGN1 }
+            # Classical, for contrast.
+            - { ksk: ED25519,    zsk: ED25519 }
+            - { ksk: RSASHA256,  zsk: ED25519 }

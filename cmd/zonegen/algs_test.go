@@ -66,12 +66,16 @@ func TestLookupAlgSpansBothSources(t *testing.T) {
 }
 
 func TestSplitAlgorithmsOnlyCoversDifferingPairs(t *testing.T) {
-	combos := []Combo{
-		{KSK: "MLDSA87", ZSK: "ED25519"},
-		{KSK: "MLDSA87", ZSK: "FALCON512"},
-		{KSK: "ED25519", ZSK: "ED25519"}, // same alg: needs no entry
+	// Derived from the resolved POLICIES rather than from combos. That is the
+	// point of the change: a policy written out by hand contributes to these
+	// lists exactly like a generated one, so a large algorithm cannot become
+	// invisible to large_algorithms just because no matrix produced it.
+	policies := []PolicySpec{
+		{Name: "a", KSKAlg: "MLDSA87", ZSKAlg: "ED25519"},
+		{Name: "b", KSKAlg: "MLDSA87", ZSKAlg: "FALCON512"},
+		{Name: "c", KSKAlg: "ED25519", ZSKAlg: "ED25519"}, // same alg: needs no entry
 	}
-	split := splitAlgorithms(combos, Combo{KSK: "ED25519", ZSK: "ED25519"})
+	split := splitAlgorithmsOf(policies)
 	if _, ok := split["ED25519"]; ok {
 		t.Error("a same-algorithm pair must not appear in split_algorithms")
 	}
@@ -79,6 +83,12 @@ func TestSplitAlgorithmsOnlyCoversDifferingPairs(t *testing.T) {
 	sort.Strings(got)
 	if strings.Join(got, ",") != "ED25519,FALCON512" {
 		t.Errorf("MLDSA87 should be allowed to pair with both ZSKs, got %v", got)
+	}
+
+	large := largeAlgorithmsOf(policies)
+	sort.Strings(large)
+	if strings.Join(large, ",") != "FALCON512,MLDSA87" {
+		t.Errorf("large_algorithms = %v, want the two PQ algorithms", large)
 	}
 }
 

@@ -97,41 +97,9 @@ func (a algInfo) IsLarge() bool {
 	return a.PubKey+a.Sig > dnskeyResponseFloor
 }
 
-// largeAlgorithms returns the sorted large algorithms among those used by the
-// given combos, for the dnssec.large_algorithms config list.
-func largeAlgorithms(combos []Combo, parent Combo) []string {
-	seen := map[string]bool{}
-	for _, c := range append(append([]Combo{}, combos...), parent) {
-		for _, name := range []string{c.KSK, c.ZSK} {
-			if a, ok := lookupAlg(name); ok && a.IsLarge() {
-				seen[a.Name] = true
-			}
-		}
-	}
-	return sortedKeys(seen)
-}
-
-// splitAlgorithms builds the dnssec.split_algorithms allowlist: for every pair
-// whose KSK and ZSK algorithms differ, the KSK must name the ZSK it may pair
-// with, or tdns-auth refuses the policy at parse time.
-func splitAlgorithms(combos []Combo, parent Combo) map[string][]string {
-	out := map[string]map[string]bool{}
-	for _, c := range append(append([]Combo{}, combos...), parent) {
-		if c.KSK == c.ZSK {
-			continue
-		}
-		if out[c.KSK] == nil {
-			out[c.KSK] = map[string]bool{}
-		}
-		out[c.KSK][c.ZSK] = true
-	}
-	res := map[string][]string{}
-	for ksk, zsks := range out {
-		res[ksk] = sortedKeys(zsks)
-	}
-	return res
-}
-
+// sortedKeys is shared with the policy-derived versions of these lists in
+// zoneset.go, which replaced the Combo-based ones: deriving from the resolved
+// policy set covers a hand-written policy as well as a generated one.
 func sortedKeys(m map[string]bool) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
