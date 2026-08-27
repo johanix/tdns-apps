@@ -74,21 +74,46 @@ apiservers:
 	}
 }
 
+// TestResolveFromAuthConfigDerivesADialableUrl covers the two ways the
+// derivation can be wrong.
+//
+// The scheme must come from usetls, NOT from whether certfile is set. tdns
+// marks apiserver.certfile validate:"required", so a cert path is present even
+// on a server that never offers TLS -- an earlier version of this keyed off
+// certfile and would point https:// at a plain HTTP listener. tdns has no
+// default for UseTLS (it is a plain bool), so an unset usetls means HTTP, and
+// this mirrors that.
+//
+// And a wildcard listen address is bindable but not dialable, so it becomes
+// loopback OF THE SAME FAMILY: an IPv6 wildcard must not become 127.0.0.1,
+// which would never reach a server bound IPv6-only.
 func TestResolveFromAuthConfigDerivesADialableUrl(t *testing.T) {
-	cases := map[string]string{
-		"127.0.0.1:8989": "https://127.0.0.1:8989/api/v1",
-		// A wildcard is bindable but not dialable, so it must become loopback
-		// rather than being pasted into a URL verbatim.
-		"0.0.0.0:8989": "https://127.0.0.1:8989/api/v1",
-		"[::]:8989":    "https://127.0.0.1:8989/api/v1",
+	cases := []struct {
+		name       string
+		addr       string
+		useTLS     bool
+		wantURL    string
+		wantRootCA string
+	}{
+		{"tls on", "127.0.0.1:8989", true, "https://127.0.0.1:8989/api/v1", "/etc/tdns/certs/server.crt"},
+		// The case that was wrong: a cert is configured, but the server is not
+		// serving TLS with it.
+		{"tls off despite a certfile", "127.0.0.1:8989", false, "http://127.0.0.1:8989/api/v1", ""},
+		{"ipv4 wildcard", "0.0.0.0:8989", true, "https://127.0.0.1:8989/api/v1", "/etc/tdns/certs/server.crt"},
+		{"ipv6 wildcard keeps the family", "[::]:8989", true, "https://[::1]:8989/api/v1", "/etc/tdns/certs/server.crt"},
 	}
-	for addr, want := range cases {
-		t.Run(addr, func(t *testing.T) {
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			usetls := ""
+			if tc.useTLS {
+				usetls = "   usetls:     true\n"
+			}
 			p := write(t, "tdns-auth.yaml", `
 apiserver:
-   addresses:  [ "`+addr+`" ]
+   addresses:  [ "`+tc.addr+`" ]
    apikey:     the-key
    certfile:   /etc/tdns/certs/server.crt
+`+usetls+`
 zones:
    - name: example.
 `)
@@ -96,17 +121,16 @@ zones:
 			if err != nil {
 				t.Fatalf("resolve: %v", err)
 			}
-			if s.BaseUrl != want {
-				t.Errorf("baseurl = %q, want %q", s.BaseUrl, want)
+			if s.BaseUrl != tc.wantURL {
+				t.Errorf("baseurl = %q, want %q", s.BaseUrl, tc.wantURL)
 			}
 			if s.ApiKey != "the-key" {
 				t.Errorf("apikey = %q", s.ApiKey)
 			}
-			// certfile is the server's own cert, which is the right trust
-			// anchor only when it is self-signed -- but it is the only thing
-			// the server config offers.
-			if s.RootCAFile != "/etc/tdns/certs/server.crt" {
-				t.Errorf("rootcafile = %q", s.RootCAFile)
+			// The server's own cert is a usable trust anchor only when it is
+			// actually serving TLS with it, and only when self-signed.
+			if s.RootCAFile != tc.wantRootCA {
+				t.Errorf("rootcafile = %q, want %q", s.RootCAFile, tc.wantRootCA)
 			}
 			if !strings.Contains(origin, "derived from") {
 				t.Errorf("origin should say it was derived, got %q", origin)

@@ -107,6 +107,27 @@ func firstLine(s string) string {
 	return s
 }
 
+// previousSerialOf returns the SOA serial of an existing zone file, or 0 if
+// there is no readable zone there.
+//
+// Unlike readExistingZone this does NOT require the generated marker and does
+// not care about the body: it is asked on the plain regenerate path, where the
+// only question is what serial must be beaten. A file we cannot read is not an
+// error here -- it just means there is no floor to respect.
+func previousSerialOf(path, origin string) uint32 {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	zp := dns.NewZoneParser(strings.NewReader(string(data)), origin, path)
+	for rr, ok := zp.Next(); ok; rr, ok = zp.Next() {
+		if soa, isSOA := rr.(*dns.SOA); isSOA {
+			return soa.Serial
+		}
+	}
+	return 0
+}
+
 // churn applies percent% of change to the body, split between removing names,
 // changing what a name holds, and adding names that were not there.
 //
@@ -123,25 +144,59 @@ func churn(body []ownerGroup, percent float64, m Mutator, rng *rand.Rand) ([]own
 	if total > n {
 		total = n
 	}
+	// Adds equal removes so the zone neither grows nor shrinks over repeated
+	// updates; the remainder goes to modifications, which are size-neutral.
+	// Giving the remainder to adds instead (total - nDel - nMod) made every
+	// churn grow the zone by up to two names, which over a day of RPZ updates
+	// is slow drift rather than the stable size the docs claim.
 	nDel := total / 3
-	nMod := total / 3
-	nAdd := total - nDel - nMod
+	nAdd := nDel
+	nMod := total - nDel - nAdd
 
 	taken := make(map[string]bool, n)
 	for _, g := range body {
 		taken[g.Owner] = true
 	}
 
+	// A delegation is not churnable content. Remaking a cut point would replace
+	// its NS with ordinary records, and deleting it would strand its glue and
+	// the occluded name beneath it as ordinary data -- in both cases the zone
+	// stays parseable but stops being the fixture --delegations produced. So
+	// cuts, and everything below them, are held out of the victim set.
+	protected := make([]string, 0, 4)
+	for _, g := range body {
+		for _, r := range g.Records {
+			if f := strings.Fields(r); len(f) >= 4 && f[3] == "NS" {
+				protected = append(protected, g.Owner)
+				break
+			}
+		}
+	}
+	isProtected := func(owner string) bool {
+		for _, p := range protected {
+			if owner == p || strings.HasSuffix(owner, "."+p) {
+				return true
+			}
+		}
+		return false
+	}
+
 	// Choose the victims up front, by permutation, so no name is both modified
 	// and deleted and the choice does not depend on iteration order.
 	perm := rng.Perm(n)
+	victims := make([]int, 0, len(perm))
+	for _, i := range perm {
+		if !isProtected(body[i].Owner) {
+			victims = append(victims, i)
+		}
+	}
 	del := map[int]bool{}
 	mod := map[int]bool{}
-	for i := 0; i < nDel && i < len(perm); i++ {
-		del[perm[i]] = true
+	for i := 0; i < nDel && i < len(victims); i++ {
+		del[victims[i]] = true
 	}
-	for i := nDel; i < nDel+nMod && i < len(perm); i++ {
-		mod[perm[i]] = true
+	for i := nDel; i < nDel+nMod && i < len(victims); i++ {
+		mod[victims[i]] = true
 	}
 
 	out := make([]ownerGroup, 0, n+nAdd)

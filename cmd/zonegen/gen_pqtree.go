@@ -122,6 +122,10 @@ func buildPqtree(c *Config) (*ZoneSet, error) {
 		// Recorded on the parent so the back half knows where the DS goes.
 		zs.Zones[0].Children = append(zs.Zones[0].Children, name)
 	}
+	// A no-op for the usual out-of-bailiwick nameservers, and the difference
+	// between a zone that loads and one that does not for an operator who sets
+	// nameservers: [ ns1.pq.example. ].
+	zs.AddGlue(&c.Zonegen.Defaults)
 	return zs, nil
 }
 

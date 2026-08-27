@@ -76,6 +76,7 @@ type tdnsAuthView struct {
 		ApiKey    string   `yaml:"apikey"`
 		CertFile  string   `yaml:"certfile"`
 		KeyFile   string   `yaml:"keyfile"`
+		UseTLS    bool     `yaml:"usetls"`
 	} `yaml:"apiserver"`
 }
 
@@ -172,13 +173,21 @@ func serverNames(servers []ApiServerConf) []string {
 
 // fromAuthConfig derives a client connection from the SERVER's own config.
 //
-// Two things need care. The listen address may be a wildcard, which is a fine
+// Three things need care. The listen address may be a wildcard, which is a fine
 // thing to bind and a useless thing to dial, so an unspecified host becomes
-// loopback. And certfile is the server's own certificate, not a CA: it works as
-// a trust anchor when the cert is self-signed (the common case for a lab), and
-// not at all when it was issued by a CA -- which the server config does not
-// name anywhere. That case needs rootcafile set explicitly, so say so rather
-// than failing later inside a TLS handshake.
+// loopback.
+//
+// The scheme comes from usetls, NOT from whether certfile is set. tdns marks
+// apiserver.certfile validate:"required", so a cert path is present even on a
+// server that never offers TLS; keying off it would point https:// at a plain
+// HTTP listener. tdns has no default for UseTLS -- it is a plain bool, so an
+// unset usetls is false and apirouters.go serves HTTP. This mirrors that
+// exactly, including the default.
+//
+// And certfile is the server's own certificate, not a CA: it works as a trust
+// anchor when the cert is self-signed (the common case for a lab), and not at
+// all when it was issued by a CA -- which the server config does not name
+// anywhere. That case needs rootcafile set explicitly.
 func fromAuthConfig(path string) (ApiServerConf, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -202,18 +211,20 @@ func fromAuthConfig(path string) (ApiServerConf, error) {
 		return ApiServerConf{}, fmt.Errorf("%s: apiserver.addresses[0]: %v", path, err)
 	}
 	scheme := "http"
-	if a.CertFile != "" {
+	rootCA := ""
+	if a.UseTLS {
 		scheme = "https"
+		// Self-signed is the lab case and this is then the right anchor. If the
+		// cert came from a CA this will not verify, and the operator has to
+		// name the CA -- which is not derivable from the server's config.
+		rootCA = a.CertFile
 	}
 	return ApiServerConf{
 		Name:       conventionalAuthServer,
 		BaseUrl:    fmt.Sprintf("%s://%s/api/v1", scheme, hostport),
 		ApiKey:     a.ApiKey,
 		AuthMethod: "X-API-Key",
-		// Self-signed is the lab case and this is then the right anchor. If the
-		// cert came from a CA this will not verify, and the operator has to
-		// name the CA -- which is not derivable from the server's config.
-		RootCAFile: a.CertFile,
+		RootCAFile: rootCA,
 	}, nil
 }
 
@@ -227,8 +238,16 @@ func dialableAddress(addr string) (string, error) {
 		return "", fmt.Errorf("%q has no port", addr)
 	}
 	// "", 0.0.0.0 and :: all mean "every interface" -- bindable, not dialable.
-	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+	// The replacement keeps the family: an IPv6 wildcard becomes ::1, not
+	// 127.0.0.1, which would not reach a server bound IPv6-only.
+	if ip := net.ParseIP(host); host == "" {
 		host = "127.0.0.1"
+	} else if ip != nil && ip.IsUnspecified() {
+		if ip.To4() != nil {
+			host = "127.0.0.1"
+		} else {
+			host = "::1"
+		}
 	}
 	return net.JoinHostPort(host, port), nil
 }

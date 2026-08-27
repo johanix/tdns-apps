@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -115,7 +114,18 @@ func zonePath(c *Config, o *runOptions, zone string) string {
 // runGenerate is the shared back half: keys, DS, files, config block.
 func runGenerate(c *Config, zs *ZoneSet, o *runOptions) error {
 	if zs.Serial == 0 {
-		zs.Serial = NewSerial(time.Now(), 0)
+		// Read the serial of whatever is being overwritten. Without this a
+		// second run on the same day stamps the same YYYYMMDD00 over changed
+		// content -- the original serial bug, surviving on the path operators
+		// actually use when they change flags and regenerate. The set shares
+		// one serial, so the floor is the highest of the files it replaces.
+		var prev uint32
+		for i := range zs.Zones {
+			if s := previousSerialOf(zonePath(c, o, zs.Zones[i].Name), zs.Zones[i].Name); s > prev {
+				prev = s
+			}
+		}
+		zs.Serial = NewSerial(nowFunc(), prev)
 	}
 	if o.OutFile != "" && len(zs.Zones) > 1 {
 		return fmt.Errorf("--outfile names a single file but this generates %d zones; "+

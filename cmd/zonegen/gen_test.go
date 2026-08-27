@@ -284,6 +284,14 @@ func TestInBailiwickNameserverHasAnAddress(t *testing.T) {
 		{"tree", func() (*ZoneSet, error) {
 			return buildTree(c, "tree.example.", 1, 2, "ED25519", "ED25519", true)
 		}},
+		{"pqtree", func() (*ZoneSet, error) {
+			// The shipped sample uses out-of-bailiwick nameservers, so point
+			// them inside the tree -- which is exactly the configuration that
+			// would otherwise produce a zone BIND will not load.
+			pq := loadPq(t, "            - { ksk: ED25519, zsk: ED25519 }\n")
+			pq.Zonegen.Pqtree.Parent.Nameservers = []string{"ns1.pq.example."}
+			return buildPqtree(pq)
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			zs, err := tc.build()
