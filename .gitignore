@@ -43,3 +43,4 @@ cmd/sewhois/*.sqlite
 cmd/sewhois/*.sqlite-wal
 cmd/sewhois/*.sqlite-shm
 cmd/sewhois/tdns-sewhois.yaml
+cmd/zonegen/tdns-zonegen
