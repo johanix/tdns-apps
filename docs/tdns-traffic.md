@@ -1,4 +1,4 @@
-# traffic — DNS Traffic Generator
+# tdns-traffic — DNS Traffic Generator
 
 A DNS query load generator with configurable QPS shapes, designed
 for testing nameserver performance under various traffic patterns.
@@ -6,31 +6,44 @@ for testing nameserver performance under various traffic patterns.
 ## Build
 
 ```
-cd cli && make
+cd cmd/traffic && make
 ```
 
-Produces the `traffic-cli` binary (statically linked, CGO disabled).
+Produces the `tdns-traffic` binary (statically linked, CGO disabled), or build
+the whole repo's packaged apps with `make -C cmd pkg`.
+
+## Structure
+
+`cmd/traffic/main.go` is the entire app: it wires up cobra and nothing else.
+Everything it does lives in `lib/traffic`, which is where a second consumer
+would reach it -- the reason the code is a library rather than a `package main`
+is that `tdns-zonegen` generates the zones this is pointed at, and the two are
+meant to be usable together.
+
+The library hands its commands back rather than attaching them to a parent it
+owns, so the app decides its own hierarchy: `tdns-traffic run`, not
+`tdns-traffic traffic run` as the standalone tool used to require.
 
 ## Quick Start
 
 ```
 # Simple run (foreground, trapezoid shape):
-traffic-cli traffic run --shape trapezoid --max 5000 --cycle 2m \
+tdns-traffic run --shape trapezoid --max 5000 --cycle 2m \
    -t 10.0.0.1 --qname example.com
 
 # With a qname file and random prefixes:
-traffic-cli traffic run --shape arch --max 3000 --cycle 90s \
+tdns-traffic run --shape arch --max 3000 --cycle 90s \
    -t ns1.example.com --qname-file names.txt --random-prefix
 
 # As a background server (requires --maxtime):
-traffic-cli traffic run --server --maxtime 1h --shape sine \
+tdns-traffic run --server --maxtime 1h --shape sine \
    --max 2000 -t 10.0.0.1 --qname example.com \
    --logfile /tmp/traffic.log
 ```
 
 ## Commands
 
-### `traffic run`
+### `run`
 
 The main command. Sends DNS A queries to one or more target
 nameservers, varying the QPS over time according to the selected
@@ -63,7 +76,7 @@ Tells a running server to shut down gracefully.
 Adds time to a running server's remaining time limit.
 
 ```
-traffic-cli traffic extend 45m
+tdns-traffic traffic extend 45m
 ```
 
 ### `traffic status`
@@ -121,7 +134,7 @@ test.example.org
 ## Server Mode and Control
 
 When started with `--server`, the process forks to the background
-and listens on a unix socket (`/tmp/traffic-cli.sock`) for control
+and listens on a unix socket (`/tmp/tdns-traffic.sock`) for control
 commands. The `--maxtime` flag is mandatory to prevent forgotten
 runaway processes.
 

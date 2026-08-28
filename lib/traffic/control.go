@@ -9,7 +9,10 @@ import (
 	"time"
 )
 
-const SocketPath = "/tmp/traffic-cli.sock"
+// SocketPath follows the binary name: an operator looking for the control
+// socket of tdns-traffic should not have to know it used to be called
+// traffic-cli.
+const SocketPath = "/tmp/tdns-traffic.sock"
 
 // ControlCommand is the JSON message sent over the unix socket.
 type ControlCommand struct {

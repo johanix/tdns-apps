@@ -1,10 +1,22 @@
-module github.com/johanix/traffic/traffic
+// The shared library module for tdns-apps.
+//
+// The apps under cmd/ are thin: a main.go that wires up cobra and nothing
+// else. Everything they actually do lives here, so that two apps can use the
+// same code -- which is the point, since tdns-zonegen generates the zones that
+// tdns-traffic is then pointed at.
+//
+// It is a module of its own rather than part of a repo-wide one because the
+// apps do not agree on their dependencies: zonegen replaces github.com/miekg/dns
+// with the johanix fork, and traffic uses upstream. One module could not hold
+// both.
+module github.com/johanix/tdns-apps/lib
 
 go 1.23.2
 
 require (
 	github.com/miekg/dns v1.1.63
 	github.com/spf13/cobra v1.9.1
+	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.19.0
 )
 
@@ -20,7 +32,6 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect

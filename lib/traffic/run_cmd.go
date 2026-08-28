@@ -27,7 +27,7 @@ var (
 	maxTime         time.Duration
 )
 
-var TrafficRunCmd = &cobra.Command{
+var RunCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run DNS traffic with a configurable QPS shape",
 	Long: `Send DNS queries using a QPS shape that varies over each cycle.
@@ -41,7 +41,7 @@ Available shapes:
 	Run: runTraffic,
 }
 
-var TrafficStopCmd = &cobra.Command{
+var StopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop a running traffic server",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -53,7 +53,7 @@ var TrafficStopCmd = &cobra.Command{
 	},
 }
 
-var TrafficExtendCmd = &cobra.Command{
+var ExtendCmd = &cobra.Command{
 	Use:   "extend <duration>",
 	Short: "Extend the running server's remaining time",
 	Long:  `Add time to the running server, e.g. "traffic-cli traffic extend 45m"`,
@@ -77,7 +77,7 @@ var TrafficExtendCmd = &cobra.Command{
 	},
 }
 
-var TrafficStatusCmd = &cobra.Command{
+var StatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Check if a traffic server is running",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -88,17 +88,6 @@ var TrafficStatusCmd = &cobra.Command{
 		}
 		fmt.Println(resp.Message)
 	},
-}
-
-func init() {
-	TrafficCmd.AddCommand(TrafficRunCmd, TrafficStopCmd, TrafficExtendCmd, TrafficStatusCmd)
-	TrafficRunCmd.Flags().StringVar(&shapeName, "shape", "trapezoid", "QPS shape (see --help for list)")
-	TrafficRunCmd.Flags().IntVar(&peakCount, "peaks", 3, "Number of peaks per cycle (only for 'peaks' shape)")
-	TrafficRunCmd.Flags().StringVar(&qnameFile, "qname-file", "", "File with base qnames (one per line)")
-	TrafficRunCmd.Flags().IntVar(&randomPrefixPct, "random-prefix", 0, "Percentage of qnames that get a random prefix (0-100)")
-	TrafficRunCmd.Flags().BoolVar(&serverMode, "server", false, "Run as a background server (detach from terminal)")
-	TrafficRunCmd.Flags().StringVar(&logFile, "logfile", "", "Log file (default: stderr; useful with --server)")
-	TrafficRunCmd.Flags().DurationVar(&maxTime, "maxtime", 0, "Maximum run time (required for --server, e.g. 30m, 2h)")
 }
 
 func runTraffic(cmd *cobra.Command, args []string) {
