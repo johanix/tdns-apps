@@ -72,14 +72,26 @@ func readExistingZone(path, origin string, force bool) (*parsedZone, error) {
 
 	pz := &parsedZone{}
 	byOwner := map[string]int{}
+	nameservers := map[string]bool{}
 	zp := dns.NewZoneParser(strings.NewReader(string(data)), origin, path)
 	for rr, ok := zp.Next(); ok; rr, ok = zp.Next() {
 		if soa, isSOA := rr.(*dns.SOA); isSOA {
 			pz.Serial = soa.Serial
 			continue
 		}
-		// The apex NS set is regenerated from config, not churned.
+		// The apex NS set is regenerated from config, not churned. Remember
+		// what it points at: if a nameserver is in-bailiwick, AddGlue wrote an
+		// address for it, and that address must be held out of the churn too.
+		// Otherwise a round can delete the glue and AddGlue puts it straight
+		// back, so the zone grows by one name and the size stability the docs
+		// promise is only true when the seed happens not to pick it.
 		if rr.Header().Name == origin && rr.Header().Rrtype == dns.TypeNS {
+			if ns, ok := rr.(*dns.NS); ok {
+				nameservers[ns.Ns] = true
+			}
+			continue
+		}
+		if nameservers[rr.Header().Name] {
 			continue
 		}
 		owner := rr.Header().Name

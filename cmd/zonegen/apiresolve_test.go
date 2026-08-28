@@ -89,31 +89,40 @@ apiservers:
 // which would never reach a server bound IPv6-only.
 func TestResolveFromAuthConfigDerivesADialableUrl(t *testing.T) {
 	cases := []struct {
-		name       string
-		addr       string
-		useTLS     bool
+		name string
+		addr string
+		// usetls is the literal config line, so the three states stay
+		// distinguishable: explicitly true, explicitly false, and absent. An
+		// earlier version of this test wrote nothing for the "off" case, which
+		// silently conflated "off" with "relying on the default" -- and the
+		// default is true, so that case was asserting the wrong thing.
+		usetls     string
 		wantURL    string
 		wantRootCA string
 	}{
-		{"tls on", "127.0.0.1:8989", true, "https://127.0.0.1:8989/api/v1", "/etc/tdns/certs/server.crt"},
-		// The case that was wrong: a cert is configured, but the server is not
-		// serving TLS with it.
-		{"tls off despite a certfile", "127.0.0.1:8989", false, "http://127.0.0.1:8989/api/v1", ""},
-		{"ipv4 wildcard", "0.0.0.0:8989", true, "https://127.0.0.1:8989/api/v1", "/etc/tdns/certs/server.crt"},
-		{"ipv6 wildcard keeps the family", "[::]:8989", true, "https://[::1]:8989/api/v1", "/etc/tdns/certs/server.crt"},
+		{"explicit true", "127.0.0.1:8989", "   usetls:     true\n",
+			"https://127.0.0.1:8989/api/v1", "/etc/tdns/certs/server.crt"},
+		// The originally reported bug: a cert is configured but TLS is off.
+		{"explicit false despite a certfile", "127.0.0.1:8989", "   usetls:     false\n",
+			"http://127.0.0.1:8989/api/v1", ""},
+		// An absent key means TRUE, because the daemon injects that default
+		// into the raw map before decoding. Getting this backwards makes the
+		// tool dial HTTP at an HTTPS listener.
+		{"omitted means true", "127.0.0.1:8989", "",
+			"https://127.0.0.1:8989/api/v1", "/etc/tdns/certs/server.crt"},
+		{"ipv4 wildcard", "0.0.0.0:8989", "   usetls:     true\n",
+			"https://127.0.0.1:8989/api/v1", "/etc/tdns/certs/server.crt"},
+		{"ipv6 wildcard keeps the family", "[::]:8989", "   usetls:     true\n",
+			"https://[::1]:8989/api/v1", "/etc/tdns/certs/server.crt"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			usetls := ""
-			if tc.useTLS {
-				usetls = "   usetls:     true\n"
-			}
 			p := write(t, "tdns-auth.yaml", `
 apiserver:
    addresses:  [ "`+tc.addr+`" ]
    apikey:     the-key
    certfile:   /etc/tdns/certs/server.crt
-`+usetls+`
+`+tc.usetls+`
 zones:
    - name: example.
 `)

@@ -389,9 +389,6 @@ func newAddrPool(cidr string) (*addrPool, error) {
 		return nil, fmt.Errorf("--addr-pool must be an IPv4 prefix, got %q", cidr)
 	}
 	ones, bits := netw.Mask.Size()
-	// A /32 gives size 1, and next() then divides by size-1 == 0. A /0 gives
-	// 1<<32, which is 0 in a uint32 and makes the pool nonsense rather than
-	// huge. Require a prefix that actually holds host addresses to hand out.
 	// A /32 gives size 1, and next() then divides by size-1 == 0. A /0 needs
 	// 1<<32, which is 0 in a uint32 and makes the pool nonsense rather than
 	// huge. Everything between is fine, however large.

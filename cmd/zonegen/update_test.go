@@ -323,3 +323,68 @@ func countNS(text string) int {
 	}
 	return n
 }
+
+// TestChurnPreservesApexGlue: with an in-bailiwick nameserver, AddGlue writes
+// an address for it into the zone. That address is ordinary-looking data, so
+// churn could delete it -- and AddGlue would then put it straight back on the
+// next generation, growing the zone by one name each round.
+//
+// TestChurnKeepsTheZoneSize counts CNAME owners only, so it cannot see this;
+// whether it showed up depended on whether the seed happened to pick the glue.
+// This counts every owner name, which is what "the zone does not drift" has to
+// mean if it is a fact rather than a tendency.
+func TestChurnPreservesApexGlue(t *testing.T) {
+	c := baseConfig(t)
+	zone := "rpz.example."
+	path := filepath.Join(t.TempDir(), "rpz.zone")
+	rz := &rpzOpts{count: 120, actions: "nxdomain,nodata,passthru", triggers: "qname",
+		redirect: "walled-garden.example."}
+
+	zs, err := buildRpz(c, zone, rz, &runOptions{OutFile: path})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	zs.Serial = 100
+	if err := writeFile(path, zs.Render(&zs.Zones[0], &c.Zonegen.Defaults)); err != nil {
+		t.Fatal(err)
+	}
+	glue := "ns1." + zone
+	if !strings.Contains(readFileOrDie(t, path), glue+"\t") {
+		t.Fatalf("fixture has no in-bailiwick glue for %s", glue)
+	}
+	before := countOwners(readFileOrDie(t, path))
+
+	// 100%% churn makes every name a victim, so the glue is certainly among
+	// them. At a low rate whether this bug shows up is a property of the seed,
+	// which is exactly why it survived the first round of review.
+	for round := 0; round < 5; round++ {
+		zs, err := buildRpz(c, zone, rz, &runOptions{OutFile: path, Update: 100})
+		if err != nil {
+			t.Fatalf("round %d: %v", round, err)
+		}
+		if err := writeFile(path, zs.Render(&zs.Zones[0], &c.Zonegen.Defaults)); err != nil {
+			t.Fatal(err)
+		}
+		text := readFileOrDie(t, path)
+		if n := strings.Count(text, glue+"\t"); n != 1 {
+			t.Fatalf("round %d: glue for %s appears %d times, want exactly 1", round, glue, n)
+		}
+		if got := countOwners(text); got != before {
+			t.Fatalf("round %d: owner count drifted %d -> %d", round, before, got)
+		}
+	}
+}
+
+// countOwners counts distinct owner names, apex included.
+func countOwners(text string) int {
+	seen := map[string]bool{}
+	for _, line := range strings.Split(text, "\n") {
+		if line == "" || strings.HasPrefix(line, ";") {
+			continue
+		}
+		if f := strings.Fields(line); len(f) >= 4 {
+			seen[f[0]] = true
+		}
+	}
+	return len(seen)
+}
