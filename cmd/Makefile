@@ -9,7 +9,7 @@
 # The apps shipped in the package. ONE package for the repo, deliberately: a
 # collection of micro-packages is more to build, publish, install and keep from
 # skewing than the things it packages.
-PKG_APPS=	zonegen
+PKG_APPS=	zonegen traffic
 
 # What those apps install, as paths from the root. The prefix passed to
 # mkpkg.sh is "/" rather than /usr/local because the package spans two roots --
@@ -19,7 +19,9 @@ PKG_APPS=	zonegen
 # Keep this in step with PKG_APPS. A forgotten entry is caught at build time:
 # mkpkg.sh refuses to package a file that is not there.
 PKG_FILES=	usr/local/bin/tdns-zonegen \
-		etc/tdns/tdns-zonegen.sample.yaml
+		etc/tdns/tdns-zonegen.sample.yaml \
+		usr/local/bin/tdns-traffic \
+		etc/tdns/tdns-traffic.sample.yaml
 
 # VERSION lives at the repo root. "!=" rather than "$(shell ...)": $(shell) is
 # GNU-make only and under NetBSD's bmake expands to NOTHING, silently -- which

@@ -186,11 +186,8 @@ The rest:
 - `fromAuthConfig` derived the scheme from whether `certfile` was set. tdns
   marks `apiserver.certfile` `validate:"required"`, so a cert path is present
   even on a server that never offers TLS, and the derivation would point
-  `https://` at a plain HTTP listener. It now reads `usetls`. Note the review
-  suggested defaulting that to true "as the daemon does" — the daemon does the
-  opposite: `UseTLS` is a plain bool with no `SetDefault`, so unset means false
-  and `apirouters.go` serves HTTP. Mirroring the daemon means defaulting to
-  HTTP, which is what was implemented.
+  `https://` at a plain HTTP listener. It now reads `usetls`, **defaulting to
+  true when the key is absent** — see the retraction below.
 - An IPv6 wildcard listen address became `127.0.0.1`, which would never reach a
   server bound IPv6-only. It now becomes `::1`, keeping the family.
 - `buildPqtree` never called `AddGlue`, so the one generator whose zones the
@@ -236,3 +233,47 @@ zone and policy survive alongside the generated ones (9 zones, 8 policies), and
 checked too: with a bare include the server's own zone is gone and tdns records
 a clobber -- so the instruction to use `merge: true` is load-bearing, not
 cautious phrasing.
+
+## Retraction: the `usetls` default (2026-08-28)
+
+An earlier version of this note said the first review was wrong to ask for
+`usetls` to default to true, on the grounds that `UseTLS` is a plain `bool`
+with no `SetDefault`, so an unset key decodes to false and `apirouters.go`
+serves HTTP.
+
+That was wrong, and the review was right. tdns injects the default into the
+**raw map, before decoding**, in `decodeConfigMap`:
+
+```go
+// apiserver.usetls defaults to true, applied to the raw map so an absent
+// key and an explicit `usetls: true` decode identically.
+if apiserverMap, ok := configMap["apiserver"].(map[string]interface{}); ok {
+    if _, explicitlySet := apiserverMap["usetls"]; !explicitlySet {
+        apiserverMap["usetls"] = true
+    }
+}
+```
+
+That code has been on main since January. The mistake was looking at the Go
+struct and at `SetDefault` and concluding from their silence; the default is
+applied under the *YAML key name*, which neither of those searches would find.
+A GitHub issue was filed against tdns on the strength of the wrong conclusion
+and has been corrected.
+
+The consequence for zonegen was real rather than theoretical. It unmarshals the
+auth config itself instead of running tdns's loader, so an omitted `usetls:`
+made it dial `http://` at an HTTPS listener — the same class of failure as the
+bug F4 reported, with the handshake the other way round. `fromAuthConfig` now
+pre-sets `UseTLS = true` before unmarshalling, matching `decodeConfigMap`.
+
+The test that covered "TLS off" had *omitted* the key rather than writing
+`usetls: false`, so it could not tell "explicitly off" from "relying on the
+default". It now covers all three states separately.
+
+Two further leftovers from the re-review are fixed alongside: the duplicated
+comment in `newAddrPool`, and apex glue being a churn victim. The latter is
+worth noting for how it was found — the first regression test for it passed
+even with the fix removed, because at a low churn rate whether the glue is
+picked is a property of the seed. Raising the churn to 100% makes every name a
+victim and the test then fails without the fix, which is what a regression test
+has to do to be worth having.

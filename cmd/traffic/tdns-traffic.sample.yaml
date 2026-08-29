@@ -1,0 +1,18 @@
+# tdns-traffic -- a DNS query load generator.
+#
+# Almost everything is a flag, because it is what you vary between runs:
+#
+#   tdns-traffic run --shape trapezoid --max 5000 --cycle 2m \
+#      -t 192.0.2.1 --qname example.com
+#
+# This file supplies the one thing that is awkward on a command line: the list
+# of names to query for. --qname (a single name) and --qname-file (one name per
+# line) override it, and with either of those no config file is needed at all.
+
+traffic:
+   # Queried in rotation. Point these at a zone the target actually serves --
+   # a load test that gets NXDOMAIN for every query measures the wrong path.
+   names:
+      - example.com
+      - www.example.com
+      - mail.example.com

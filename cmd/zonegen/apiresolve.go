@@ -180,9 +180,17 @@ func serverNames(servers []ApiServerConf) []string {
 // The scheme comes from usetls, NOT from whether certfile is set. tdns marks
 // apiserver.certfile validate:"required", so a cert path is present even on a
 // server that never offers TLS; keying off it would point https:// at a plain
-// HTTP listener. tdns has no default for UseTLS -- it is a plain bool, so an
-// unset usetls is false and apirouters.go serves HTTP. This mirrors that
-// exactly, including the default.
+// HTTP listener.
+//
+// usetls DEFAULTS TO TRUE when the key is absent. The daemon does this in
+// decodeConfigMap, injecting the default into the raw map before decoding, so
+// an omitted key and an explicit `usetls: true` decode identically. Reading the
+// Go struct suggests the opposite -- UseTLS is a plain bool with no SetDefault,
+// so its zero value is false -- and that is simply the wrong place to look. We
+// unmarshal the auth config ourselves rather than running tdns's loader, so the
+// same default has to be applied by hand here; without it an omitted key makes
+// this dial HTTP at an HTTPS listener, which is the bug this function was fixed
+// for, mirrored.
 //
 // And certfile is the server's own certificate, not a CA: it works as a trust
 // anchor when the cert is self-signed (the common case for a lab), and not at
@@ -193,7 +201,11 @@ func fromAuthConfig(path string) (ApiServerConf, error) {
 	if err != nil {
 		return ApiServerConf{}, fmt.Errorf("reading %s: %v", path, err)
 	}
-	var v tdnsAuthView
+	// Default applied BEFORE unmarshalling, matching decodeConfigMap: yaml
+	// leaves absent keys untouched, so a pre-set true survives an omitted key
+	// and is overwritten by an explicit false.
+	v := tdnsAuthView{}
+	v.ApiServer.UseTLS = true
 	if err := yaml.Unmarshal(data, &v); err != nil {
 		return ApiServerConf{}, fmt.Errorf("parsing %s: %v", path, err)
 	}
