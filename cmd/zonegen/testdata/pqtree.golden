@@ -13,7 +13,7 @@ www.mldsa87-ed25519.pq.example.	3600	IN	A	192.0.2.2
 mldsa44-ed25519.pq.example.	3600	IN	SOA	ns1.example. hostmaster.example. ( 2026082701 3600 600 1209600 600 )
 mldsa44-ed25519.pq.example.	3600	IN	NS	ns1.example.
 mldsa44-ed25519.pq.example.	3600	IN	NS	ns2.example.
-mldsa44-ed25519.pq.example.	3600	IN	TXT	"PQ-DNSSEC testbed: KSK=MLDSA44 (199) ZSK=ED25519 (15)"
+mldsa44-ed25519.pq.example.	3600	IN	TXT	"PQ-DNSSEC testbed: KSK=MLDSA44 (18) ZSK=ED25519 (15)"
 mldsa44-ed25519.pq.example.	3600	IN	A	192.0.2.2
 www.mldsa44-ed25519.pq.example.	3600	IN	A	192.0.2.2
 ===== FILE /etc/tdns/zones/slhdsa128s-ed25519.pq.example.
