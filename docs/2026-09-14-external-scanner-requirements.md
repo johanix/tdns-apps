@@ -4,6 +4,11 @@ Written 2026-09-14. Requirements for a first implementation; the design follows.
 
 Revisions:
 - r1 2026-09-14: first version.
+- r2 2026-09-14: four points carried over from the 2026-05-10 design:
+  - a report-only scan against current data the caller supplies (R1.5);
+  - an immediate answer to a quick single-zone scan (R2.7);
+  - result shapes per scan type (R5.7);
+  - a failure taxonomy (R5.8).
 
 ## Purpose
 
@@ -38,6 +43,8 @@ These requirements differ:
 - the code lives in tdns-apps ("Where the code lives");
 - DNSKEY scanning is not covered (open question 4).
 
+Four of its points carry over: R1.5, R2.7, R5.7 and R5.8.
+
 ## Terms
 
 - **Parent**: a zone whose children the scanner is configured to scan.
@@ -60,6 +67,10 @@ These requirements differ:
   named explicitly. That scan only reports: its nameservers come from the
   parent's public referral, its current DS from a validated DS query, and it has
   no sink.
+- **R1.5** A request for named zones may carry the caller's current delegation
+  data for each zone. The scan then compares against that data instead of a
+  sink's view, and only reports. This serves a client that keeps delegation
+  state of its own.
 
 ## 2. Triggers
 
@@ -73,6 +84,9 @@ These requirements differ:
   done and remaining, percentage, ETA) and its results.
 - **R2.6** A NOTIFY(CDS) or NOTIFY(CSYNC) (RFC 9859 NOTIFY scheme) for a child of
   a configured parent scans that child for that type.
+- **R2.7** A request for a single zone gets its result in the response when the
+  scan finishes within a configured short time. Otherwise the response carries
+  the job id, as in R2.5.
 
 ## 3. Scale and rate limiting
 
@@ -172,6 +186,32 @@ These are the scanner's responsibility. Parent policy is not (section 8).
   channels.
 - **R5.6** The scanner does not decide whether a change is applied. With the
   external-db sink, the consumer of the store decides.
+- **R5.7** Each scan type has its own result shape:
+  - **CDS:** the DS records to add and to remove, and the CDS or CDNSKEY
+    RRset they were derived from.
+  - **CSYNC:** NS changes at the child's apex and glue changes per nameserver
+    name, with the CSYNC record and the SOA serial the scan was processed at.
+- **R5.8** A refusal or an error carries a code from a fixed taxonomy as well as a
+  message, so a client can act on it without parsing text. Every refusal code
+  names the requirement it enforces. The design fixes the names; the taxonomy
+  covers at least:
+
+  | Outcome | Requirement |
+  |---|---|
+  | A nameserver has no address, or none answers | R4.4 |
+  | A query timed out | R4.4 |
+  | The nameservers disagree | R4.4 |
+  | The child does not exist | |
+  | Data that did not validate: bogus, insecure or indeterminate | R4.1 |
+  | CDS or CDNSKEY not signed by a key the DS RRset points to | R4.5 |
+  | CDS and CDNSKEY describe different keys | R4.7 |
+  | The DS RRset does not match the child's DNSKEY RRset | R4.9 |
+  | The CSYNC cannot be processed: flags, soaminimum, an old serial, or an unsupported type | R4.10, R4.11, R4.13, R4.14 |
+  | The SOA serial changed during the scan | R4.12 |
+  | The result would leave no glue | R4.17 |
+  | A new nameserver answers without AA | R4.18 |
+  | The sink refused or failed | R5.4 |
+  | An internal error | |
 
 ## 6. tdns-auth with an external scanner
 
