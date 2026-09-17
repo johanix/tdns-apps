@@ -69,6 +69,7 @@ pq.example.	3600	IN	NS	ns2.example.
 pq.example.	3600	IN	A	192.0.2.1
 pq.example.	3600	IN	AAAA	2001:db8::1
 pq.example.	3600	IN	TXT	"PQ-DNSSEC testbed: one child zone per KSK/ZSK algorithm pair. See <ksk>-<zsk>.pq.example"
+pq.example.	3600	IN	CDS	12345 13 2 abababababababababababababababababababababababababababababababab
 
 mldsa87-ed25519.pq.example.	3600	IN	NS	ns1.example.
 mldsa87-ed25519.pq.example.	3600	IN	NS	ns2.example.

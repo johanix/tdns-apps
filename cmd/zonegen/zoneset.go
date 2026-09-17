@@ -129,6 +129,25 @@ func (zs *ZoneSet) Render(z *ZoneSpec, d *DefaultsConf) string {
 	for _, r := range z.Records {
 		fmt.Fprintf(&b, "%s\n", r)
 	}
+	// The apex publishes its own DS as a CDS (RFC 7344). CDS and DS have
+	// identical RDATA, so this is the same string DelegationSnippet prints --
+	// said in the record whose meaning is "this is what my parent should
+	// publish" rather than as advice in a comment the operator has to act on.
+	//
+	// It exists so the parent can take the DS by the ordinary CDS route. The
+	// alternative is computing the digest a second time outside this tool and
+	// keeping the two copies in step by hand, which is the sort of arrangement
+	// that silently rots the first time a KSK rolls.
+	//
+	// Apex only, and only when the set has one: a child's DS is written
+	// directly into this zone below, so a child CDS would signal something
+	// already done, and a generator producing a single standalone zone
+	// (bigzone, rpz) has no parent to signal to.
+	if zs.Apex != "" && z.Name == zs.Apex {
+		for _, ds := range z.DS {
+			fmt.Fprintf(&b, "%s\t%d\tIN\tCDS\t%s\n", z.Name, d.TTL, ds)
+		}
+	}
 	if len(z.Children) > 0 {
 		b.WriteString("\n")
 		for _, cn := range z.Children {
