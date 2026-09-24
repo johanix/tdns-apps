@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	algregistry "github.com/johanix/dnssec-algorithms/registry"
 )
 
 // TestIsLargeMatchesTheCuratedList pins the derived large-algorithm rule
@@ -62,6 +64,40 @@ func TestLookupAlgSpansBothSources(t *testing.T) {
 	}
 	if _, ok := lookupAlg("NOSUCHALG"); ok {
 		t.Error("an unknown algorithm must not resolve")
+	}
+}
+
+// withoutRegistryRow removes name's row from registry.Algorithms for the rest
+// of the test, as a dnssec-algorithms version that no longer carries it would.
+// If the pinned version has no such row, there is nothing to remove.
+func withoutRegistryRow(t *testing.T, name string) {
+	t.Helper()
+	saved := algregistry.Algorithms
+	t.Cleanup(func() { algregistry.Algorithms = saved })
+	rows := make([]algregistry.Alg, 0, len(saved))
+	for _, a := range saved {
+		if a.Name != name {
+			rows = append(rows, a)
+		}
+	}
+	algregistry.Algorithms = rows
+}
+
+// ML-DSA-44 is built into every tdns binary (tdns #760), and dnssec-algorithms
+// drops its registry row. It must still resolve, at its IANA codepoint, in
+// both roles, with its sizes; so must ED448, which never had a row.
+func TestBuiltinsResolveWithoutARegistryRow(t *testing.T) {
+	withoutRegistryRow(t, "MLDSA44")
+
+	a, ok := lookupAlg("MLDSA44")
+	if !ok || a.Codepoint != 18 || !a.ForKSK || !a.ForZSK {
+		t.Fatalf("MLDSA44: got %+v, %v; want codepoint 18 usable in both roles", a, ok)
+	}
+	if a.PubKey != 1312 || a.Sig != 2420 || !a.IsLarge() {
+		t.Errorf("MLDSA44 sizes: pubkey %d sig %d; want 1312 and 2420, large", a.PubKey, a.Sig)
+	}
+	if e, ok := lookupAlg("ed448"); !ok || e.Codepoint != 16 || !e.ForKSK || !e.ForZSK || e.IsLarge() {
+		t.Errorf("ED448: got %+v, %v; want codepoint 16 in both roles, not large", e, ok)
 	}
 }
 

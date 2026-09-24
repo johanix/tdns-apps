@@ -100,7 +100,9 @@ func renderAll(t *testing.T, c *Config) string {
 	return b.String()
 }
 
-func TestPqtreeGoldenOutput(t *testing.T) {
+// renderGoldenConfig loads goldenConfigYAML and renders the whole tree.
+func renderGoldenConfig(t *testing.T) string {
+	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "zonegen.yaml")
 	if err := os.WriteFile(path, []byte(goldenConfigYAML), 0600); err != nil {
@@ -113,7 +115,25 @@ func TestPqtreeGoldenOutput(t *testing.T) {
 	if err := c.ValidatePqtree(); err != nil {
 		t.Fatalf("validate: %v", err)
 	}
-	got := renderAll(t, c)
+	return renderAll(t, c)
+}
+
+// The golden config has an MLDSA44/ED25519 pair. Without ML-DSA-44's registry
+// row -- dnssec-algorithms drops it once the algorithm is built into tdns --
+// the tree must come out exactly the same.
+func TestPqtreeGoldenWithoutTheMLDSA44Row(t *testing.T) {
+	withoutRegistryRow(t, "MLDSA44")
+	want, err := os.ReadFile(filepath.Join("testdata", "pqtree.golden"))
+	if err != nil {
+		t.Fatalf("reading the golden file: %v", err)
+	}
+	if got := renderGoldenConfig(t); got != string(want) {
+		t.Errorf("pqtree output changed without the MLDSA44 row. First difference:\n%s", firstDiff(string(want), got))
+	}
+}
+
+func TestPqtreeGoldenOutput(t *testing.T) {
+	got := renderGoldenConfig(t)
 
 	goldenPath := filepath.Join("testdata", "pqtree.golden")
 	if *updateGolden {

@@ -29,7 +29,8 @@ import (
 )
 
 // algInfo is one algorithm as this tool needs it, whether it comes from the
-// registry (the PQ algorithms, codepoints 199+) or from miekg's built-ins.
+// registry (the PQ algorithms an app selects, codepoints 200+) or from the
+// algorithms every tdns binary has (builtinAlgs).
 type algInfo struct {
 	Name      string
 	Codepoint uint8
@@ -39,13 +40,24 @@ type algInfo struct {
 	Sig       int
 }
 
-// builtinAlgs are the classical algorithms. They are miekg built-ins, so they
-// are NOT rows in registry.Algorithms -- that table holds only what gets
-// registered through dns.RegisterAlgorithm. Their sizes do live in
-// registry.AlgorithmFacts, so only the role has to be stated here, and for
-// every classical DNSSEC algorithm both roles are fine.
+// builtinAlgs are the algorithms every tdns binary has, whatever its
+// algs.list: the classical miekg built-ins, plus ED448 and ML-DSA-44, which
+// tdns registers itself (ML-DSA-44 since tdns #760). They are NOT rows in
+// registry.Algorithms, which holds what an app selects through its
+// algs.list. (A dnssec-algorithms version from before ML-DSA-44 moved into
+// tdns still has its row; a row is consulted first and agrees.) Their sizes
+// do live in registry.AlgorithmFacts, so only the role has to be stated
+// here, and every one of them is fine in both roles.
 var builtinAlgs = []string{
-	"ED25519", "ECDSAP256SHA256", "ECDSAP384SHA384", "RSASHA256", "RSASHA512",
+	"ED25519", "ED448", "ECDSAP256SHA256", "ECDSAP384SHA384", "RSASHA256", "RSASHA512",
+	"MLDSA44",
+}
+
+// builtinCodepoints holds the codepoints of the built-ins miekg has no name
+// for. dns.StringToAlgorithm learns ML-DSA-44 only when something registers
+// it, and this binary links no algorithm implementations.
+var builtinCodepoints = map[string]uint8{
+	"MLDSA44": 18, // IANA-assigned
 }
 
 // lookupAlg resolves an algorithm by canonical name, spanning both sources.
@@ -67,6 +79,9 @@ func lookupAlg(name string) (algInfo, bool) {
 			continue
 		}
 		code, ok := dns.StringToAlgorithm[name]
+		if !ok {
+			code, ok = builtinCodepoints[name]
+		}
 		if !ok {
 			return algInfo{}, false
 		}
