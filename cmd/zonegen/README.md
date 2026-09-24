@@ -17,7 +17,9 @@ after that is shared: create the keys, read back the DS, splice delegations into
 parents, render, write atomically, emit the tdns-auth block.
 
 Nothing here is PQ-specific. Algorithm pairs come from config, and everything
-the tool knows about an algorithm comes from `dnssec-algorithms/registry`.
+the tool knows about an algorithm comes from `dnssec-algorithms/registry`,
+plus the list of algorithms every tdns binary has: the classical ones, ED448
+and ML-DSA-44 (codepoint 18).
 
 ## Use
 
