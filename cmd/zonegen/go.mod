@@ -12,7 +12,7 @@ replace (
 	github.com/johanix/tdns/v2/cache => github.com/johanix/tdns/v2/cache v0.0.0-20260826100332-bd4f141aa912
 	github.com/johanix/tdns/v2/core => github.com/johanix/tdns/v2/core v0.0.0-20260826100332-bd4f141aa912
 	github.com/johanix/tdns/v2/edns0 => github.com/johanix/tdns/v2/edns0 v0.0.0-20260826100332-bd4f141aa912
-	github.com/miekg/dns => github.com/johanix/dns v1.1.72-johanix.2
+	github.com/miekg/dns => github.com/johanix/dns v1.1.72-johanix.4
 )
 
 require (
